@@ -1,0 +1,2 @@
+simple-term-menu>=1.6.4
+docopt>=0.6.2
