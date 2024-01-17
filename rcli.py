@@ -38,7 +38,7 @@ def buildFileStructure(paths):
 
     return fileStructure
 
-def display_fileStructure(fileStructure, indent=0):
+def displayFileStructure(fileStructure, indent=0):
     for key, value in fileStructure.items():
         print("  " * indent + f"- {key}")
         if value:
@@ -48,7 +48,7 @@ def genOptions(path):
     output = []
     for key in path:
         if len(key) > 0:
-            if len(p[key]) > 0:
+            if len(path[key]) > 0:
                 output.append(key + "/")
             else:
                 output.append(key)
@@ -58,27 +58,18 @@ def genOptions(path):
 
 args = docopt(__doc__)
 
-class bcolors:
-    HEADER = '\033[95m'
-    OKBLUE = '\033[94m'
-    OKCYAN = '\033[96m'
-    OKGREEN = '\033[92m'
-    WARNING = '\033[93m'
-    FAIL = '\033[91m'
-    ENDC = '\033[0m'
-    BOLD = '\033[1m'
-    UNDERLINE = '\033[4m'
-
-
 if __name__ == "__main__":
     allPaths = rclone(["ls", args["<remote>"]], capture=True).split("\n")
     allPaths = [path.lstrip() for path in allPaths]
     allPaths = [" ".join(path.split(" ")[1:]) for path in allPaths]
     
     p = buildFileStructure(allPaths)
-    options = genOptions(p)
-    #display_file_structure(p)
-    
-    terminal_menu = TerminalMenu(options)
-    menu_entry_index = terminal_menu.show()
-    print(f"You have selected {options[menu_entry_index]}!")
+    root = p
+
+    while True:
+        options = genOptions(root)
+        terminal_menu = TerminalMenu(options)
+        menu_entry_index = terminal_menu.show()
+        print(f"You have selected {options[menu_entry_index]}!")
+        folder = options[menu_entry_index].replace("/","")
+        root = root[folder]
