@@ -116,13 +116,23 @@ class forum:
         """
         pass
 
+class loadingforum(forum):
+    def __init__(self, remote: str, registerKeyFunc):
+        super().__init__(registerKeyFunc)
+        self.components = [
+                textcomponent(f"Loading database from {remote}, please be patient.", (0, 1))
+        ]
+
+    def draw(self, stdscr):
+        for component in self.components:
+            component.draw(stdscr)
+
 class choiceforum(forum):
     def __init__(self, options, flags, registerKeyFunc):
         super().__init__(registerKeyFunc)
         self.options = options
         self.choiceComponent = choicecomponent(self.options, flags, (1,1))
         self.components = [
-            textinputcomponent((0,20)),
             self.choiceComponent
         ]
 
@@ -213,6 +223,10 @@ class cursedcli:
             i(c)
 
     def main(self):
+        self.stdscr.clear()
+        loadingforum("truth:",self.registerKeyListener).draw(self.stdscr)
+        self.stdscr.refresh()
+
         rcloneData = rclone()
         fileStructure = rcloneData.getFileStructure("truth:")
         history = []
