@@ -117,10 +117,10 @@ class forum:
         pass
 
 class loadingforum(forum):
-    def __init__(self, remote: str, registerKeyFunc):
+    def __init__(self, text: str, registerKeyFunc):
         super().__init__(registerKeyFunc)
         self.components = [
-                textcomponent(f"Loading database from {remote}, please be patient.", (0, 1))
+                textcomponent(text, (0, 1))
         ]
 
     def draw(self, stdscr):
@@ -128,12 +128,13 @@ class loadingforum(forum):
             component.draw(stdscr)
 
 class choiceforum(forum):
-    def __init__(self, options, flags, registerKeyFunc):
+    def __init__(self, options, flags, extra: str, registerKeyFunc):
         super().__init__(registerKeyFunc)
         self.options = options
-        self.choiceComponent = choicecomponent(self.options, flags, (1,1))
+        self.choiceComponent = choicecomponent(self.options, flags, (1,3))
         self.components = [
-            self.choiceComponent
+            self.choiceComponent,
+            textcomponent(extra, (1,1))
         ]
 
         for co in self.components:
@@ -224,12 +225,13 @@ class cursedcli:
 
     def main(self):
         self.stdscr.clear()
-        loadingforum("truth:",self.registerKeyListener).draw(self.stdscr)
+        loadingforum("Loading database, please be patient.",self.registerKeyListener).draw(self.stdscr)
         self.stdscr.refresh()
 
         rcloneData = rclone()
         fileStructure = rcloneData.getFileStructure("truth:")
         history = []
+        folderDir = []
         currentFolder = fileStructure
 
         while True:
@@ -237,7 +239,7 @@ class cursedcli:
             flags = CHOICE.NONE
             if len(history) > 0:
                 flags = CHOICE.BACK
-            choiceForum = choiceforum(options, flags, self.registerKeyListener)
+            choiceForum = choiceforum(options, flags, "/".join(folderDir), self.registerKeyListener)
 
             while True:
                 self.stdscr.clear()
@@ -249,11 +251,12 @@ class cursedcli:
                 if choiceForum.getdata() != None:
                     node: Optional[str] = choiceForum.getdata()
                     if node == CHOICE.BACK:
-                        # TODO: Implement what happens when done at root directory
                         currentFolder = history.pop()
+                        folderDir.pop()
 
                     elif node.endswith("/"): # It's a folder
                         history.append(currentFolder.copy())
+                        folderDir.append(node.replace("/",""))
                         currentFolder = currentFolder[node.replace("/", "")]
 
 
