@@ -10,6 +10,7 @@ import logging
 
 class CHOICE:
     BACK = 0b01
+    NONE = 0b00
 
 
 class component:
@@ -49,9 +50,7 @@ class textinputcomponent(component):
             self.text += chr(c)
 
 class choicecomponent(component):
-    BACK = 0b01
-
-    def __init__(self, choices: list[str], flags=0b00, offset=(0,0)):
+    def __init__(self, choices: list[str], flags=CHOICE.NONE, offset=(0,0)):
         super().__init__(offset)
         self.choices = choices
         self.choice = None
@@ -118,13 +117,12 @@ class forum:
         pass
 
 class choiceforum(forum):
-    def __init__(self, options, registerKeyFunc):
+    def __init__(self, options, flags, registerKeyFunc):
         super().__init__(registerKeyFunc)
         self.options = options
-        self.choiceComponent = choicecomponent(self.options, CHOICE.BACK, (1,1))
+        self.choiceComponent = choicecomponent(self.options, flags, (1,1))
         self.components = [
-            textcomponent("hello", (0,10)),
-            textinputcomponent((0,11)),
+            textinputcomponent((0,20)),
             self.choiceComponent
         ]
 
@@ -222,7 +220,10 @@ class cursedcli:
 
         while True:
             options = rcloneData.lsf(currentFolder)
-            choiceForum = choiceforum(options, self.registerKeyListener)
+            flags = CHOICE.NONE
+            if len(history) > 0:
+                flags = CHOICE.BACK
+            choiceForum = choiceforum(options, flags, self.registerKeyListener)
 
             while True:
                 self.stdscr.clear()
