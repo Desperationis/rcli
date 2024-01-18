@@ -8,54 +8,7 @@ Usage:
 
 from docopt import docopt
 from cursedcli import cursedcli
-import os
-import time
-import sys 
-import subprocess
-
-def rclone(args : list[str], capture=False):
-    args.insert(0, "rclone")
-
-    if not capture:
-        os.system(" ".join(args))
-    else:
-        process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
-        output, error = process.communicate()
-
-        return output
-
-
-def buildFileStructure(paths):
-    fileStructure = {}
-
-    for path in paths:
-        parts = path.split("/")
-        currentLevel = fileStructure
-
-        for part in parts:
-            if part not in currentLevel:
-                currentLevel[part] = {}
-            currentLevel = currentLevel[part]
-
-    return fileStructure
-
-def displayFileStructure(fileStructure, indent=0):
-    for key, value in fileStructure.items():
-        print("  " * indent + f"- {key}")
-        if value:
-            displayFileStructure(value, indent + 1)
-
-def genOptions(path):
-    output = []
-    for key in path:
-        if len(key) > 0:
-            if len(path[key]) > 0:
-                output.append(key + "/")
-            else:
-                output.append(key)
-
-    return output
-
+import logging
 
 args = docopt(__doc__)
 
@@ -70,13 +23,23 @@ if __name__ == "__main__":
     while True:
         options = genOptions(root)"""
 
+    errorStr = ""
+
+    logging.basicConfig(filename="rcli.log",
+                    filemode='a',
+                    format='%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s',
+                    datefmt='%H:%M:%S',
+                    level=logging.DEBUG)
+
     try:
         cli = cursedcli()
         cli.start()
         cli.main()
 
     except Exception as e:
-        print(e)
+        errorStr = str(e)
 
     finally:
         cli.end()
+        if len(errorStr) > 0:
+            logging.error(errorStr)
