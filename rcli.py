@@ -6,9 +6,10 @@ Usage:
 
 """
 
-from simple_term_menu import TerminalMenu
 from docopt import docopt
+from cursedcli import cursedcli
 import os
+import time
 import sys 
 import subprocess
 
@@ -42,7 +43,7 @@ def displayFileStructure(fileStructure, indent=0):
     for key, value in fileStructure.items():
         print("  " * indent + f"- {key}")
         if value:
-            display_fileStructure(value, indent + 1)
+            displayFileStructure(value, indent + 1)
 
 def genOptions(path):
     output = []
@@ -59,7 +60,7 @@ def genOptions(path):
 args = docopt(__doc__)
 
 if __name__ == "__main__":
-    allPaths = rclone(["ls", args["<remote>"]], capture=True).split("\n")
+    """allPaths = rclone(["ls", args["<remote>"]], capture=True).split("\n")
     allPaths = [path.lstrip() for path in allPaths]
     allPaths = [" ".join(path.split(" ")[1:]) for path in allPaths]
     
@@ -67,9 +68,15 @@ if __name__ == "__main__":
     root = p
 
     while True:
-        options = genOptions(root)
-        terminal_menu = TerminalMenu(options)
-        menu_entry_index = terminal_menu.show()
-        print(f"You have selected {options[menu_entry_index]}!")
-        folder = options[menu_entry_index].replace("/","")
-        root = root[folder]
+        options = genOptions(root)"""
+
+    try:
+        cli = cursedcli()
+        cli.start()
+        cli.main()
+
+    except Exception as e:
+        print(e)
+
+    finally:
+        cli.end()
