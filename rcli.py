@@ -13,16 +13,6 @@ import logging
 args = docopt(__doc__)
 
 if __name__ == "__main__":
-    """allPaths = rclone(["ls", args["<remote>"]], capture=True).split("\n")
-    allPaths = [path.lstrip() for path in allPaths]
-    allPaths = [" ".join(path.split(" ")[1:]) for path in allPaths]
-    
-    p = buildFileStructure(allPaths)
-    root = p
-
-    while True:
-        options = genOptions(root)"""
-
     errorStr = ""
 
     logging.basicConfig(filename="rcli.log",

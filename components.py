@@ -36,17 +36,19 @@ class fuzzycomponent(component):
         self.maxlines = maxlines
         self.topresults = []
         self.inputtext = ""
+        self.selectedIndex = 0
 
     def draw(self, stdscr):
         stdscr.addstr(self.offset[1], self.offset[0], self.inputtext)
         for i, result in enumerate(self.topresults):
-            stdscr.addstr(self.offset[1] + i + 1, self.offset[0], result)
+            if self.selectedIndex == i:
+                stdscr.addstr(self.offset[1] + i + 1, self.offset[0], result, curses.A_REVERSE)
+            else:
+                stdscr.addstr(self.offset[1] + i + 1, self.offset[0], result)
 
     def updateresults(self):
         self.topresults = process.extract(self.inputtext, self.data, scorer=fuzz.WRatio, limit=self.maxlines)
-        logging.debug(f"First step: {self.topresults}")
         self.topresults = [result[0] for result in self.topresults]
-        logging.debug(f"Second step: {self.topresults}")
 
     def isvalid(self, c: int):
          return str(chr(c)) in string.printable
@@ -57,10 +59,15 @@ class fuzzycomponent(component):
             self.updateresults()
         elif c == curses.KEY_ENTER or c == 10:
             pass
+        elif c == curses.KEY_DOWN or c == 9:  # Tab
+            self.selectedIndex += 1
+        elif c == curses.KEY_UP or c == curses.KEY_BTAB:  # Shift+Tab
+            self.selectedIndex -= 1
         elif self.isvalid(c):
             self.inputtext += chr(c)
             self.updateresults()
 
+        self.selectedIndex %= len(self.topresults)
 
 class choicecomponent(component):
     def __init__(self, choices: list[str], back=False, offset=(0,0)):
