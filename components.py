@@ -37,6 +37,7 @@ class fuzzycomponent(component):
         self.topresults = []
         self.inputtext = ""
         self.selectedIndex = 0
+        self.choice = None
 
     def draw(self, stdscr):
         stdscr.addstr(self.offset[1], self.offset[0], self.inputtext)
@@ -58,7 +59,8 @@ class fuzzycomponent(component):
             self.inputtext = self.inputtext[:-1]
             self.updateresults()
         elif c == curses.KEY_ENTER or c == 10:
-            pass
+            if len(self.topresults) > 0:
+                self.choice = self.topresults[self.selectedIndex]
         elif c == curses.KEY_DOWN or c == 9:  # Tab
             self.selectedIndex += 1
         elif c == curses.KEY_UP or c == curses.KEY_BTAB:  # Shift+Tab
@@ -67,7 +69,10 @@ class fuzzycomponent(component):
             self.inputtext += chr(c)
             self.updateresults()
 
-        self.selectedIndex %= len(self.topresults)
+        if len(self.topresults) > 0:
+            self.selectedIndex %= len(self.topresults)
+        else:
+            self.selectedIndex = 0
 
 class choicecomponent(component):
     def __init__(self, choices: list[str], back=False, offset=(0,0)):

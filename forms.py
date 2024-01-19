@@ -58,9 +58,10 @@ class choiceforum(forum):
 
 class fuzzyforum(forum):
     def __init__(self, pathList, registerKeyFunc):
+        self.fuzzycomponent = fuzzycomponent(pathList, offset=(1,2))
         self.components = [
             textcomponent("Search file: ", (1,1)),
-            fuzzycomponent(pathList, offset=(1,2))
+            self.fuzzycomponent
         ]
 
         for co in self.components:
@@ -71,5 +72,8 @@ class fuzzyforum(forum):
             component.draw(stdscr)
 
     def getdata(self):
+        if self.fuzzycomponent.choice != None:
+            return self.fuzzycomponent.choice
+
         return None
 

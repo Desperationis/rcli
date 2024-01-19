@@ -29,9 +29,16 @@ class scene(ABC):
         """
         pass
 
+    @abstractmethod 
+    def getdata(self) -> Optional[object]:
+        """If a scene passes data to another, this will return the data. None
+        if the scene didn't return any. Yes, this is completely dependent on a
+        per-scene basis."""
+        pass
+
 
 class choosefilescene(scene):
-    def __init__(self, filesystem):
+    def __init__(self, filesystem, folderDir=None):
         super().__init__()
         self.rclone = rclone()
         self.filesystem = filesystem
@@ -40,6 +47,14 @@ class choosefilescene(scene):
         self.currentFolder = filesystem
         self.choiceForum = None
         self.nextScene = None
+
+        if folderDir != None:
+            self.folderDir = folderDir
+            for folder in folderDir:
+                self.history.append(self.currentFolder.copy())
+                self.currentFolder = self.currentFolder[folder]
+
+
 
     def show(self, stdscr):
         if self.choiceForum == None:
@@ -75,6 +90,9 @@ class choosefilescene(scene):
     def getNextScene(self) -> Optional[int]:
         return self.nextScene
 
+    def getdata(self):
+        return None
+
 
 class fuzzyscene(scene):
     def __init__(self, pathList):
@@ -92,9 +110,17 @@ class fuzzyscene(scene):
         c = stdscr.getch()
         self.broadcastKeyEvent(c)
 
+        # User selected something a path
+        if self.fuzzyForum.getdata() != None:
+            self.nextScene = SCENES.CHOOSE_FILE
+
     def getNextScene(self) -> Optional[int]:
         return self.nextScene
 
+    def getdata(self):
+        if self.fuzzyForum != None:
+            return self.fuzzyForum.getdata()
+        return None
 
 class rclone:
     def rclone(self, args : list[str], capture=False):
@@ -180,7 +206,10 @@ class cursedcli:
                 scene = fuzzyscene(allPaths)
 
             if nextScene == SCENES.CHOOSE_FILE:
-                scene = choosefilescene(fileStructure)
+                filePath: str = scene.getdata()
+                initialFolder = list(filter(None,filePath.split("/"))) # Removes empty strings
+                initialFolder = initialFolder[:-1] # Parent folder path
+                scene = choosefilescene(fileStructure, initialFolder)
 
 
     def end(self):
