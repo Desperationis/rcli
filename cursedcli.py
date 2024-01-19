@@ -220,8 +220,9 @@ class rclone:
 
 
 class cursedcli:
-    def __init__(self):
+    def __init__(self, remote):
         self.stdscr = curses.initscr()
+        self.remote = remote
 
     def start(self):
         curses.noecho()
@@ -240,8 +241,8 @@ class cursedcli:
         self.stdscr.refresh()
 
         rcloneData = rclone()
-        allPaths = rcloneData.getAllPaths("truth:")
-        fileStructure = rcloneData.getFileStructure("truth:")
+        allPaths = rcloneData.getAllPaths(self.remote)
+        fileStructure = rcloneData.getFileStructure(self.remote)
 
         scene = choosefilescene(fileStructure)
         while True:
@@ -262,7 +263,7 @@ class cursedcli:
                 scene = choosefilescene(fileStructure, initialFolder)
 
             if nextScene == SCENES.DOWNLOAD:
-                downloadPath: str = "truth:" + scene.getdata()
+                downloadPath: str = self.remote + scene.getdata()
                 logging.debug(f"Will download from path {downloadPath}")
                 scene = downloadscene(downloadPath, ".")
 

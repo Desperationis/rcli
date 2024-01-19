@@ -26,7 +26,7 @@ if __name__ == "__main__":
     )
 
     try:
-        cli = cursedcli()
+        cli = cursedcli(args["<remote>"])
         cli.start()
         cli.main()
 
