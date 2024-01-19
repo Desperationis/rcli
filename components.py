@@ -4,7 +4,6 @@ from typing import Optional
 from enums import CHOICE, SCENES
 import string
 import logging
-from rapidfuzz import fuzz, process
 
 class component(ABC):
     def __init__(self, offset=(0,0)):
@@ -30,7 +29,7 @@ class textcomponent(component):
         pass
 
 class fuzzycomponent(component):
-    def __init__(self, data, maxlines=10, offset=(0,0)):
+    def __init__(self, data, maxlines=40, offset=(0,0)):
         super().__init__(offset)
         self.data = data 
         self.maxlines = maxlines
@@ -48,8 +47,21 @@ class fuzzycomponent(component):
                 stdscr.addstr(self.offset[1] + i + 1, self.offset[0], result)
 
     def updateresults(self):
-        self.topresults = process.extract(self.inputtext, self.data, scorer=fuzz.WRatio, limit=self.maxlines)
-        self.topresults = [result[0] for result in self.topresults]
+        results = []
+        keywords = list(filter(None, self.inputtext.split("/")))
+
+        # Iterate through file paths
+        for file_path in self.data:
+            # Count the occurrences of keywords in the file path
+            score = sum(keyword.lower() in file_path.lower() for keyword in keywords)
+
+            # Append the tuple (file_path, score) to the results list
+            results.append((file_path, score))
+
+        results.sort(key=lambda x: x[1], reverse=True)
+        results = [ result[0] for result in results ]
+
+        self.topresults = results[:10]
 
     def isvalid(self, c: int):
          return str(chr(c)) in string.printable
