@@ -104,7 +104,10 @@ class choicecomponent(component):
                 x -= 2
                 content = f"> {content}"
 
-            stdscr.addstr(y, x, content)
+            if option != CHOICE.BACK and option.endswith("/"):
+                stdscr.addstr(y, x, content, curses.color_pair(1))
+            else:
+                stdscr.addstr(y, x, content)
 
     def cursorOnChoice(self):
         return self.elementIndex >= 0 and self.elementIndex < len(self.choices)

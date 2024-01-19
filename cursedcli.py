@@ -179,12 +179,16 @@ class cursedcli:
     def __init__(self):
         self.stdscr = curses.initscr()
 
+
     def start(self):
         curses.noecho()
         curses.cbreak()
         curses.curs_set(0)
+        curses.start_color()
+        curses.use_default_colors()
         self.stdscr.keypad(True)
 
+        curses.init_pair(1, curses.COLOR_CYAN, -1)
 
     def main(self):
         self.stdscr.clear()
