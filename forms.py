@@ -61,8 +61,7 @@ class choiceforum(forum):
             textcomponent(extra, textcomponent.NONE, (1, 1)),
             textcomponent(
                 "[d] download   [/] search",
-                textcomponent.BOTTOM | textcomponent.BAR,
-                (1, 1),
+                textcomponent.BOTTOM | textcomponent.BAR
             ),
         ]
 
@@ -86,6 +85,10 @@ class fuzzyforum(forum):
         self.components = [
             textcomponent("Search file: ", textcomponent.NONE, (1, 1)),
             self.fuzzycomponent,
+            textcomponent(
+                "[esc] back",
+                textcomponent.BOTTOM | textcomponent.BAR
+            ),
         ]
 
         for co in self.components:

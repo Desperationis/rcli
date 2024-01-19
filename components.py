@@ -118,24 +118,36 @@ class commandcomponent(component):
 
 
 class fuzzycomponent(component):
-    def __init__(self, data, maxlines=40, offset=(0, 0)):
+    def __init__(self, data, offset=(0, 0)):
         super().__init__(offset)
         self.data = data
-        self.maxlines = maxlines
         self.topresults = []
         self.inputtext = ""
         self.selectedIndex = 0
         self.choice = None
 
     def draw(self, stdscr):
+        rows, cols = stdscr.getmaxyx()
+        maxlines = rows - self.offset[1] - 3
+        topresults = self.topresults[:maxlines]
+
+        if len(self.topresults) > 0:
+            self.selectedIndex %= maxlines
+        else:
+            self.selectedIndex = 0
+
+
         stdscr.addstr(self.offset[1], self.offset[0], self.inputtext)
-        for i, result in enumerate(self.topresults):
+        for i, result in enumerate(topresults):
             if self.selectedIndex == i:
                 stdscr.addstr(
-                    self.offset[1] + i + 1, self.offset[0], result, curses.A_REVERSE
+                    self.offset[1] + i + 2, self.offset[0], result, curses.A_REVERSE
                 )
             else:
-                stdscr.addstr(self.offset[1] + i + 1, self.offset[0], result)
+                try:
+                    stdscr.addstr(self.offset[1] + i + 2, self.offset[0], result)
+                except curses.error:
+                    pass
 
     def updateresults(self):
         results = []
@@ -151,8 +163,8 @@ class fuzzycomponent(component):
 
         results.sort(key=lambda x: x[1], reverse=True)
         results = [result[0] for result in results]
+        self.topresults = results
 
-        self.topresults = results[:self.maxlines]
 
     def isvalid(self, c: int):
         return str(chr(c)) in string.printable
@@ -164,6 +176,8 @@ class fuzzycomponent(component):
         elif c == curses.KEY_ENTER or c == 10:
             if len(self.topresults) > 0:
                 self.choice = self.topresults[self.selectedIndex]
+        elif c == 27: # Escape
+            self.choice = ""
         elif c == curses.KEY_DOWN or c == 9:  # Tab
             self.selectedIndex += 1
         elif c == curses.KEY_UP or c == curses.KEY_BTAB:  # Shift+Tab
@@ -171,11 +185,6 @@ class fuzzycomponent(component):
         elif self.isvalid(c):
             self.inputtext += chr(c)
             self.updateresults()
-
-        if len(self.topresults) > 0:
-            self.selectedIndex %= len(self.topresults)
-        else:
-            self.selectedIndex = 0
 
 
 class choicecomponent(component):

@@ -86,7 +86,9 @@ class choosefilescene(scene):
                 if choice.data.endswith("/"):  # It's a folder
                     self.history.append(self.currentFolder.copy())
                     self.folderDir.append(choice.data.replace("/", ""))
-                    self.currentFolder = self.currentFolder[choice.data.replace("/", "")]
+                    self.currentFolder = self.currentFolder[
+                        choice.data.replace("/", "")
+                    ]
                     self.choiceForum = None
                     self.keyListeners.clear()
 
@@ -132,6 +134,7 @@ class fuzzyscene(scene):
             return self.fuzzyForum.getdata()
         return None
 
+
 class downloadscene(scene):
     def __init__(self, downloadPath, destination):
         super().__init__()
@@ -139,7 +142,9 @@ class downloadscene(scene):
         self.downloadPath = downloadPath
         self.destination = destination
         self.nextScene = None
-        self.commandforum = commandforum(["rclone", "copy", "-P", self.downloadPath, self.destination])
+        self.commandforum = commandforum(
+            ["rclone", "copy", "-P", self.downloadPath, self.destination]
+        )
 
     def show(self, stdscr) -> None:
         self.commandforum.draw(stdscr)
@@ -154,8 +159,8 @@ class downloadscene(scene):
 
     def getdata(self) -> Optional[object]:
         if self.commandforum.getdata() == True:
-            return "" # Go to root folder of choosefilescene
-        return None 
+            return ""  # Go to root folder of choosefilescene
+        return None
 
 
 class rclone:
@@ -223,7 +228,8 @@ class cursedcli:
         curses.cbreak()
         curses.curs_set(0)
         curses.start_color()
-        curses.use_default_colors()
+        curses.use_default_colors()  # Without this color pair has no transparent background
+        curses.set_escdelay(25)  # Without this there is a lag when pressing escape
         self.stdscr.keypad(True)
 
         curses.init_pair(1, curses.COLOR_CYAN, -1)
@@ -239,7 +245,7 @@ class cursedcli:
 
         scene = choosefilescene(fileStructure)
         while True:
-            self.stdscr.clear()
+            self.stdscr.erase()
             scene.show(self.stdscr)
             self.stdscr.refresh()
 
@@ -259,9 +265,6 @@ class cursedcli:
                 downloadPath: str = "truth:" + scene.getdata()
                 logging.debug(f"Will download from path {downloadPath}")
                 scene = downloadscene(downloadPath, ".")
-
-
-
 
     def end(self):
         curses.nocbreak()
