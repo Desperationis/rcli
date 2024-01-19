@@ -79,6 +79,7 @@ class choicecomponent(component):
         super().__init__(offset)
         self.choices = choices
         self.choice = None
+        self.back = back
 
         self.elements = []
         self.elementIndex = 0
@@ -116,15 +117,18 @@ class choicecomponent(component):
         return self.elements[self.elementIndex] == CHOICE.BACK
 
     def handleinput(self, c: int):
-        if c == curses.KEY_UP:
+        if c == curses.KEY_UP or c == ord("k"):
             self.elementIndex -= 1
-        elif c == curses.KEY_DOWN:
+        elif c == curses.KEY_DOWN or c == ord("j"):
             self.elementIndex += 1
         elif c == curses.KEY_ENTER or c == 10:
             if self.cursorOnChoice():
                 self.choice = self.choices[self.elementIndex]
             if self.cursorOnBack():
                 self.choice = CHOICE.BACK
+        elif c == ord("h") and self.back:
+            self.choice = CHOICE.BACK
+
 
         self.elementIndex = self.elementIndex % len(self.elements)
 
