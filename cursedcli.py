@@ -9,9 +9,7 @@ import logging
 
 
 class scene(ABC):
-    def __init__(self, filesystem):
-        self.rclone = rclone()
-        self.filesystem = filesystem
+    def __init__(self):
         self.keyListeners: List[Callable[[int], None]] = []
 
     def broadcastKeyEvent(self, c: int):
@@ -34,11 +32,14 @@ class scene(ABC):
 
 class choosefilescene(scene):
     def __init__(self, filesystem):
-        super().__init__(filesystem)
+        super().__init__()
+        self.rclone = rclone()
+        self.filesystem = filesystem
         self.history = []
         self.folderDir = []
         self.currentFolder = filesystem
         self.choiceForum = None
+        self.nextScene = None
 
     def show(self, stdscr):
         if self.choiceForum == None:
@@ -49,6 +50,9 @@ class choosefilescene(scene):
 
         c = stdscr.getch()
         self.broadcastKeyEvent(c)
+
+        if c == ord("/"):
+            self.nextScene = SCENES.FUZZY_SEARCH
 
         if self.choiceForum.getdata() != None:
             node: Optional[str] = self.choiceForum.getdata()
@@ -69,8 +73,27 @@ class choosefilescene(scene):
                 self.keyListeners.clear()
 
     def getNextScene(self) -> Optional[int]:
-        return None
+        return self.nextScene
 
+
+class fuzzyscene(scene):
+    def __init__(self, pathList):
+        super().__init__()
+        self.pathList = pathList
+        self.fuzzyForum = None
+        self.nextScene = None
+
+    def show(self, stdscr):
+        if self.fuzzyForum == None:
+            self.fuzzyForum = fuzzyforum(self.pathList, self.registerKeyListener)
+
+        self.fuzzyForum.draw(stdscr)
+
+        c = stdscr.getch()
+        self.broadcastKeyEvent(c)
+
+    def getNextScene(self) -> Optional[int]:
+        return self.nextScene
 
 
 class rclone:
@@ -85,11 +108,13 @@ class rclone:
 
             return output
 
-
-    def getFileStructure(self, remote: str):
+    def getAllPaths(self, remote: str):
         paths = self.rclone(["ls", remote], capture=True).split("\n")
         paths = [path.lstrip() for path in paths]
-        paths = [" ".join(path.split(" ")[1:]) for path in paths]
+        return [" ".join(path.split(" ")[1:]) for path in paths]
+
+    def getFileStructure(self, remote: str):
+        paths = self.getAllPaths(remote)
         
         fileStructure = {}
 
@@ -141,6 +166,7 @@ class cursedcli:
         self.stdscr.refresh()
 
         rcloneData = rclone()
+        allPaths = rcloneData.getAllPaths("truth:")
         fileStructure = rcloneData.getFileStructure("truth:")
 
         scene = choosefilescene(fileStructure)
@@ -148,6 +174,13 @@ class cursedcli:
             self.stdscr.clear()
             scene.show(self.stdscr)
             self.stdscr.refresh()
+
+            nextScene: Optional[int] = scene.getNextScene()
+            if nextScene == SCENES.FUZZY_SEARCH:
+                scene = fuzzyscene(allPaths)
+
+            if nextScene == SCENES.CHOOSE_FILE:
+                scene = choosefilescene(fileStructure)
 
 
     def end(self):

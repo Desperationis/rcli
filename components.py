@@ -3,6 +3,8 @@ from abc import ABC, abstractmethod
 from typing import Optional
 from enums import CHOICE, SCENES
 import string
+import logging
+from rapidfuzz import fuzz, process
 
 class component(ABC):
     def __init__(self, offset=(0,0)):
@@ -10,6 +12,10 @@ class component(ABC):
 
     @abstractmethod
     def draw(self, stdscr):
+        pass
+
+    @abstractmethod
+    def handleinput(self, c: int):
         pass
 
 class textcomponent(component):
@@ -23,22 +29,38 @@ class textcomponent(component):
     def handleinput(self, c):
         pass
 
-class textinputcomponent(component):
-    def __init__(self, offset=(0,0)):
+class fuzzycomponent(component):
+    def __init__(self, data, maxlines=10, offset=(0,0)):
         super().__init__(offset)
-        self.text = ""
+        self.data = data 
+        self.maxlines = maxlines
+        self.topresults = []
+        self.inputtext = ""
 
     def draw(self, stdscr):
-        stdscr.addstr(self.offset[1], self.offset[0], self.text)
+        stdscr.addstr(self.offset[1], self.offset[0], self.inputtext)
+        for i, result in enumerate(self.topresults):
+            stdscr.addstr(self.offset[1] + i + 1, self.offset[0], result)
+
+    def updateresults(self):
+        self.topresults = process.extract(self.inputtext, self.data, scorer=fuzz.WRatio, limit=self.maxlines)
+        logging.debug(f"First step: {self.topresults}")
+        self.topresults = [result[0] for result in self.topresults]
+        logging.debug(f"Second step: {self.topresults}")
 
     def isvalid(self, c: int):
-        return str(chr(c)) in string.printable
+         return str(chr(c)) in string.printable
 
     def handleinput(self, c: int):
         if c == curses.KEY_BACKSPACE:
-            self.text = self.text[:-1]
+            self.inputtext = self.inputtext[:-1]
+            self.updateresults()
+        elif c == curses.KEY_ENTER or c == 10:
+            pass
         elif self.isvalid(c):
-            self.text += chr(c)
+            self.inputtext += chr(c)
+            self.updateresults()
+
 
 class choicecomponent(component):
     def __init__(self, choices: list[str], back=False, offset=(0,0)):
@@ -83,7 +105,7 @@ class choicecomponent(component):
             self.elementIndex -= 1
         elif c == curses.KEY_DOWN:
             self.elementIndex += 1
-        elif (c == curses.KEY_ENTER or c == 10 or c == "\n"):
+        elif c == curses.KEY_ENTER or c == 10:
             if self.cursorOnChoice():
                 self.choice = self.choices[self.elementIndex]
             if self.cursorOnBack():

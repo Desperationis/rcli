@@ -57,11 +57,14 @@ class choiceforum(forum):
         return None
 
 class fuzzyforum(forum):
-    def __init__(self, data, registerKeyFunc):
+    def __init__(self, pathList, registerKeyFunc):
         self.components = [
             textcomponent("Search file: ", (1,1)),
-            textinputcomponent((1,2))
+            fuzzycomponent(pathList, offset=(1,2))
         ]
+
+        for co in self.components:
+            registerKeyFunc(co.handleinput)
 
     def draw(self, stdscr):
         for component in self.components:
