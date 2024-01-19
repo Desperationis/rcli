@@ -33,6 +33,23 @@ class loadingforum(forum):
     def getdata(self):
         return None
 
+class commandforum(forum):
+    def __init__(self, command: list[str]):
+        super().__init__(None)
+        self.commandcomponent = commandcomponent(command)
+        self.components = [
+            self.commandcomponent
+        ]
+
+    def draw(self, stdscr):
+        for component in self.components:
+            component.draw(stdscr)
+
+    def getdata(self):
+        if self.commandcomponent.isDone:
+            return True
+        return None
+
 
 class choiceforum(forum):
     def __init__(self, options, back: bool, extra: str, registerKeyFunc):
@@ -57,8 +74,8 @@ class choiceforum(forum):
             component.draw(stdscr)
 
     def getdata(self):
-        if self.choiceComponent.choice != None:
-            return self.choiceComponent.choice
+        if self.choiceComponent.getChoice().choice != CHOICE.NONE:
+            return self.choiceComponent.getChoice()
 
         return None
 

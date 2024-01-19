@@ -4,6 +4,7 @@ from typing import Optional, List, Callable
 from enums import CHOICE, SCENES
 from forms import *
 import os
+import time
 import subprocess
 import logging
 
@@ -37,7 +38,7 @@ class scene(ABC):
 
 
 class choosefilescene(scene):
-    def __init__(self, filesystem, folderDir=None):
+    def __init__(self, filesystem, folderDir=""):
         super().__init__()
         self.rclone = rclone()
         self.filesystem = filesystem
@@ -46,8 +47,9 @@ class choosefilescene(scene):
         self.currentFolder = filesystem
         self.choiceForum = None
         self.nextScene = None
+        self.data = None
 
-        if folderDir != None:
+        if folderDir != "":
             self.folderDir = folderDir
             for folder in folderDir:
                 self.history.append(self.currentFolder.copy())
@@ -72,28 +74,34 @@ class choosefilescene(scene):
             self.nextScene = SCENES.FUZZY_SEARCH
 
         if self.choiceForum.getdata() != None:
-            node: Optional[str] = self.choiceForum.getdata()
-            if node == None:
-                pass
+            choice: SelectedOption = self.choiceForum.getdata()
 
-            elif node == CHOICE.BACK:
+            if choice.choice == CHOICE.BACK:
                 self.currentFolder = self.history.pop()
                 self.folderDir.pop()
                 self.keyListeners.clear()
                 self.choiceForum = None
 
-            elif node.endswith("/"):  # It's a folder
-                self.history.append(self.currentFolder.copy())
-                self.folderDir.append(node.replace("/", ""))
-                self.currentFolder = self.currentFolder[node.replace("/", "")]
-                self.choiceForum = None
-                self.keyListeners.clear()
+            elif choice.choice == CHOICE.SELECTED:
+                if choice.data.endswith("/"):  # It's a folder
+                    self.history.append(self.currentFolder.copy())
+                    self.folderDir.append(choice.data.replace("/", ""))
+                    self.currentFolder = self.currentFolder[choice.data.replace("/", "")]
+                    self.choiceForum = None
+                    self.keyListeners.clear()
+
+            elif choice.choice == CHOICE.DOWNLOAD:
+                # Assemble full rclone path
+                folder = "/".join(self.folderDir)
+                fullPath = os.path.join(folder, choice.data)
+                self.data = fullPath
+                self.nextScene = SCENES.DOWNLOAD
 
     def getNextScene(self) -> Optional[int]:
         return self.nextScene
 
     def getdata(self):
-        return None
+        return self.data
 
 
 class fuzzyscene(scene):
@@ -123,6 +131,31 @@ class fuzzyscene(scene):
         if self.fuzzyForum != None:
             return self.fuzzyForum.getdata()
         return None
+
+class downloadscene(scene):
+    def __init__(self, downloadPath, destination):
+        super().__init__()
+        self.rclone = rclone()
+        self.downloadPath = downloadPath
+        self.destination = destination
+        self.nextScene = None
+        self.commandforum = commandforum(["rclone", "copy", "-P", self.downloadPath, self.destination])
+
+    def show(self, stdscr) -> None:
+        self.commandforum.draw(stdscr)
+
+        if self.commandforum.getdata() != None:
+            self.nextScene = SCENES.CHOOSE_FILE
+
+        time.sleep(0.2)
+
+    def getNextScene(self) -> Optional[int]:
+        return self.nextScene
+
+    def getdata(self) -> Optional[object]:
+        if self.commandforum.getdata() == True:
+            return "" # Go to root folder of choosefilescene
+        return None 
 
 
 class rclone:
@@ -221,6 +254,14 @@ class cursedcli:
                 )  # Removes empty strings
                 initialFolder = initialFolder[:-1]  # Parent folder path
                 scene = choosefilescene(fileStructure, initialFolder)
+
+            if nextScene == SCENES.DOWNLOAD:
+                downloadPath: str = "truth:" + scene.getdata()
+                logging.debug(f"Will download from path {downloadPath}")
+                scene = downloadscene(downloadPath, ".")
+
+
+
 
     def end(self):
         curses.nocbreak()

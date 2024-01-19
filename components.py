@@ -1,9 +1,11 @@
 import curses
 from abc import ABC, abstractmethod
 from typing import Optional
-from enums import CHOICE, SCENES
+from enums import CHOICE, SCENES, SelectedOption
 import string
 import logging
+import threading
+import subprocess
 
 
 class component(ABC):
@@ -65,6 +67,55 @@ class textcomponent(component):
     def handleinput(self, c):
         pass
 
+class commandcomponent(component):
+    def __init__(self, command: list[str], offset=(0, 0)):
+        super().__init__(offset)
+        self.command = command
+        self.process = None
+        self.output = ""
+        self.isDone = False
+
+        # Start the subprocess in a separate thread
+        self.startcommand()
+
+    def startcommand(self):
+        def runcommand():
+            try:
+                self.isDone = False
+                # Run the command and capture real-time output
+                self.process = subprocess.Popen(
+                    self.command,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True
+                )
+
+                for line in iter(self.process.stdout.readline, ''):
+                    self.output += line
+
+            finally:
+                logging.info(self.output)
+                self.isDone = True
+
+        # Create and start a new thread for running the subprocess
+        thread = threading.Thread(target=runcommand)
+        thread.start()
+
+    def draw(self, stdscr):
+        rows, cols = stdscr.getmaxyx()
+
+        output = self.output.split("\n")
+        output = "\n".join(output[-rows:-1])
+
+        try:
+            stdscr.addstr(self.offset[1], self.offset[0], output)
+        except curses.error:
+            pass
+
+    def handleinput(self, c: int):
+        pass
+
+
 
 class fuzzycomponent(component):
     def __init__(self, data, maxlines=40, offset=(0, 0)):
@@ -88,7 +139,7 @@ class fuzzycomponent(component):
 
     def updateresults(self):
         results = []
-        keywords = list(filter(None, self.inputtext.split("/")))
+        keywords = list(filter(None, self.inputtext.split(" ")))
 
         # Iterate through file paths
         for file_path in self.data:
@@ -101,7 +152,7 @@ class fuzzycomponent(component):
         results.sort(key=lambda x: x[1], reverse=True)
         results = [result[0] for result in results]
 
-        self.topresults = results[:10]
+        self.topresults = results[:self.maxlines]
 
     def isvalid(self, c: int):
         return str(chr(c)) in string.printable
@@ -131,7 +182,7 @@ class choicecomponent(component):
     def __init__(self, choices: list[str], back=False, offset=(0, 0)):
         super().__init__(offset)
         self.choices = choices
-        self.choice = None
+        self.choice = SelectedOption()
         self.back = back
 
         self.elements = []
@@ -169,6 +220,11 @@ class choicecomponent(component):
     def cursorOnBack(self):
         return self.elements[self.elementIndex] == CHOICE.BACK
 
+    def getChoice(self) -> SelectedOption:
+        """If nothing selected, CHOICE.NONE + None"""
+        return self.choice
+
+
     def handleinput(self, c: int):
         if c == curses.KEY_UP or c == ord("k"):
             self.elementIndex -= 1
@@ -176,10 +232,13 @@ class choicecomponent(component):
             self.elementIndex += 1
         elif c == curses.KEY_ENTER or c == 10:
             if self.cursorOnChoice():
-                self.choice = self.choices[self.elementIndex]
+                self.choice = SelectedOption(CHOICE.SELECTED, self.choices[self.elementIndex])
             if self.cursorOnBack():
-                self.choice = CHOICE.BACK
+                self.choice = SelectedOption(CHOICE.BACK)
         elif c == ord("h") and self.back:
-            self.choice = CHOICE.BACK
+            self.choice = SelectedOption(CHOICE.BACK)
+
+        elif c == ord("d"):
+            self.choice = SelectedOption(CHOICE.DOWNLOAD, self.choices[self.elementIndex])
 
         self.elementIndex = self.elementIndex % len(self.elements)
