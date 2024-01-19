@@ -9,6 +9,8 @@ Usage:
 from docopt import docopt
 from cursedcli import cursedcli
 import logging
+import traceback
+
 
 args = docopt(__doc__)
 
@@ -27,9 +29,10 @@ if __name__ == "__main__":
         cli.main()
 
     except Exception as e:
-        errorStr = str(e)
+        errorStr = traceback.format_exc()
 
     finally:
         cli.end()
         if len(errorStr) > 0:
             logging.error(errorStr)
+

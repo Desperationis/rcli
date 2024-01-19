@@ -5,8 +5,9 @@ from enums import CHOICE, SCENES
 import string
 import logging
 
+
 class component(ABC):
-    def __init__(self, offset=(0,0)):
+    def __init__(self, offset=(0, 0)):
         self.offset = offset
 
     @abstractmethod
@@ -17,21 +18,58 @@ class component(ABC):
     def handleinput(self, c: int):
         pass
 
+
 class textcomponent(component):
-    def __init__(self, text, offset=(0,0)):
+    NONE = 0b00000000
+    TEXT_CENTERED = 0b00000001
+    BOTTOM = 0b00000010
+    MIDDLE = 0b00000100
+    BAR = 0b00001000
+
+    def __init__(self, text, flags=NONE, offset=(0, 0)):
         super().__init__(offset)
         self.text = text
+        self.flags = flags
 
     def draw(self, stdscr):
-        stdscr.addstr(self.offset[1], self.offset[0], self.text)
+        x = self.offset[0]
+        y = self.offset[1]
+        rows, cols = stdscr.getmaxyx()
+        textAttr = curses.A_NORMAL
+
+        if self.flags & self.BOTTOM:
+            y = rows - 1
+
+        if self.flags & self.TEXT_CENTERED:
+            x = (cols - 1) // 2 - len(self.text) // 2
+
+        if self.flags & self.MIDDLE:
+            y = (rows - 1) // 2
+
+        if self.flags & self.BAR:
+            leftPadding = 0
+            rightPadding = (cols - 1) - len(self.text) - x
+
+            if self.flags & self.TEXT_CENTERED:
+                leftPadding = x
+                x = 0
+
+            self.text = " " * leftPadding + self.text + " " * rightPadding
+            textAttr = curses.A_REVERSE
+
+        try:
+            stdscr.addstr(y, x, self.text, textAttr)
+        except curses.error:
+            pass
 
     def handleinput(self, c):
         pass
 
+
 class fuzzycomponent(component):
-    def __init__(self, data, maxlines=40, offset=(0,0)):
+    def __init__(self, data, maxlines=40, offset=(0, 0)):
         super().__init__(offset)
-        self.data = data 
+        self.data = data
         self.maxlines = maxlines
         self.topresults = []
         self.inputtext = ""
@@ -42,7 +80,9 @@ class fuzzycomponent(component):
         stdscr.addstr(self.offset[1], self.offset[0], self.inputtext)
         for i, result in enumerate(self.topresults):
             if self.selectedIndex == i:
-                stdscr.addstr(self.offset[1] + i + 1, self.offset[0], result, curses.A_REVERSE)
+                stdscr.addstr(
+                    self.offset[1] + i + 1, self.offset[0], result, curses.A_REVERSE
+                )
             else:
                 stdscr.addstr(self.offset[1] + i + 1, self.offset[0], result)
 
@@ -59,12 +99,12 @@ class fuzzycomponent(component):
             results.append((file_path, score))
 
         results.sort(key=lambda x: x[1], reverse=True)
-        results = [ result[0] for result in results ]
+        results = [result[0] for result in results]
 
         self.topresults = results[:10]
 
     def isvalid(self, c: int):
-         return str(chr(c)) in string.printable
+        return str(chr(c)) in string.printable
 
     def handleinput(self, c: int):
         if c == curses.KEY_BACKSPACE:
@@ -86,8 +126,9 @@ class fuzzycomponent(component):
         else:
             self.selectedIndex = 0
 
+
 class choicecomponent(component):
-    def __init__(self, choices: list[str], back=False, offset=(0,0)):
+    def __init__(self, choices: list[str], back=False, offset=(0, 0)):
         super().__init__(offset)
         self.choices = choices
         self.choice = None
@@ -141,7 +182,4 @@ class choicecomponent(component):
         elif c == ord("h") and self.back:
             self.choice = CHOICE.BACK
 
-
         self.elementIndex = self.elementIndex % len(self.elements)
-
-

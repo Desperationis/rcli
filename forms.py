@@ -4,6 +4,7 @@ from typing import Optional
 from enums import CHOICE, SCENES
 from components import *
 
+
 class forum(ABC):
     def __init__(self, registerKeyFunc):
         self.registerKeyFunc = registerKeyFunc
@@ -14,15 +15,15 @@ class forum(ABC):
 
     @abstractmethod
     def getdata(self) -> Optional[object]:
-        """Returns None if user has not done something with this forum.
-        """
+        """Returns None if user has not done something with this forum."""
         pass
+
 
 class loadingforum(forum):
     def __init__(self, text: str):
         super().__init__(None)
         self.components = [
-                textcomponent(text, (0, 1))
+            textcomponent(text, textcomponent.MIDDLE | textcomponent.TEXT_CENTERED)
         ]
 
     def draw(self, stdscr):
@@ -32,19 +33,24 @@ class loadingforum(forum):
     def getdata(self):
         return None
 
+
 class choiceforum(forum):
     def __init__(self, options, back: bool, extra: str, registerKeyFunc):
         super().__init__(registerKeyFunc)
         self.options = options
-        self.choiceComponent = choicecomponent(self.options, back, (1,3))
+        self.choiceComponent = choicecomponent(self.options, back, (1, 3))
         self.components = [
             self.choiceComponent,
-            textcomponent(extra, (1,1))
+            textcomponent(extra, textcomponent.NONE, (1, 1)),
+            textcomponent(
+                "[d] download   [/] search",
+                textcomponent.BOTTOM | textcomponent.BAR,
+                (1, 1),
+            ),
         ]
 
         for co in self.components:
             registerKeyFunc(co.handleinput)
-
 
     def draw(self, stdscr):
         for component in self.components:
@@ -56,12 +62,13 @@ class choiceforum(forum):
 
         return None
 
+
 class fuzzyforum(forum):
     def __init__(self, pathList, registerKeyFunc):
-        self.fuzzycomponent = fuzzycomponent(pathList, offset=(1,2))
+        self.fuzzycomponent = fuzzycomponent(pathList, offset=(1, 2))
         self.components = [
-            textcomponent("Search file: ", (1,1)),
-            self.fuzzycomponent
+            textcomponent("Search file: ", textcomponent.NONE, (1, 1)),
+            self.fuzzycomponent,
         ]
 
         for co in self.components:
@@ -76,4 +83,3 @@ class fuzzyforum(forum):
             return self.fuzzycomponent.choice
 
         return None
-
