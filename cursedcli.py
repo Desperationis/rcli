@@ -1,11 +1,75 @@
 import curses
 from abc import ABC, abstractmethod
-from typing import Optional
+from typing import Optional, List, Callable
 from enums import CHOICE, SCENES
 from forms import *
 import os
 import subprocess
 import logging
+
+
+class scene(ABC):
+    def __init__(self, filesystem):
+        self.rclone = rclone()
+        self.filesystem = filesystem
+        self.keyListeners: List[Callable[[int], None]] = []
+
+    def broadcastKeyEvent(self, c: int):
+        for i in self.keyListeners:
+            i(c)
+
+    def registerKeyListener(self, func):
+        self.keyListeners.append(func)
+
+    @abstractmethod
+    def show(self, stdscr) -> None:
+        pass
+
+    @abstractmethod
+    def getNextScene(self) -> Optional[int]:
+        """Returns None if not ready to switch.
+        """
+        pass
+
+
+class choosefilescene(scene):
+    def __init__(self, filesystem):
+        super().__init__(filesystem)
+        self.history = []
+        self.folderDir = []
+        self.currentFolder = filesystem
+        self.choiceForum = None
+
+    def show(self, stdscr):
+        if self.choiceForum == None:
+            options = self.rclone.lsf(self.currentFolder)
+            self.choiceForum = choiceforum(options, len(self.history) > 0, "/".join(self.folderDir), self.registerKeyListener)
+
+        self.choiceForum.draw(stdscr)
+
+        c = stdscr.getch()
+        self.broadcastKeyEvent(c)
+
+        if self.choiceForum.getdata() != None:
+            node: Optional[str] = self.choiceForum.getdata()
+            if node == None:
+                pass
+
+            elif node == CHOICE.BACK:
+                self.currentFolder = self.history.pop()
+                self.folderDir.pop()
+                self.keyListeners.clear()
+                self.choiceForum = None
+
+            elif node.endswith("/"): # It's a folder
+                self.history.append(self.currentFolder.copy())
+                self.folderDir.append(node.replace("/",""))
+                self.currentFolder = self.currentFolder[node.replace("/", "")]
+                self.choiceForum = None
+                self.keyListeners.clear()
+
+    def getNextScene(self) -> Optional[int]:
+        return None
 
 
 
@@ -63,7 +127,6 @@ class rclone:
 class cursedcli:
     def __init__(self):
         self.stdscr = curses.initscr()
-        self.keyListeners = []
 
     def start(self):
         curses.noecho()
@@ -71,50 +134,20 @@ class cursedcli:
         curses.curs_set(0)
         self.stdscr.keypad(True)
 
-    def registerKeyListener(self, func):
-        self.keyListeners.append(func)
-
-    def broadcastKeyEvent(self, c: int):
-        for i in self.keyListeners:
-            i(c)
 
     def main(self):
         self.stdscr.clear()
-        loadingforum("Loading database, please be patient.",self.registerKeyListener).draw(self.stdscr)
+        loadingforum("Loading database, please be patient.").draw(self.stdscr)
         self.stdscr.refresh()
 
         rcloneData = rclone()
         fileStructure = rcloneData.getFileStructure("truth:")
-        history = []
-        folderDir = []
-        currentFolder = fileStructure
 
+        scene = choosefilescene(fileStructure)
         while True:
-            options = rcloneData.lsf(currentFolder)
-            choiceForum = choiceforum(options, len(history) > 0, "/".join(folderDir), self.registerKeyListener)
-
-            while True:
-                self.stdscr.clear()
-                choiceForum.draw(self.stdscr)
-
-                c = self.stdscr.getch()
-                self.broadcastKeyEvent(c)
-
-                if choiceForum.getdata() != None:
-                    node: Optional[str] = choiceForum.getdata()
-                    if node == CHOICE.BACK:
-                        currentFolder = history.pop()
-                        folderDir.pop()
-
-                    elif node.endswith("/"): # It's a folder
-                        history.append(currentFolder.copy())
-                        folderDir.append(node.replace("/",""))
-                        currentFolder = currentFolder[node.replace("/", "")]
-
-
-                    break
-
-
+            self.stdscr.clear()
+            scene.show(self.stdscr)
+            self.stdscr.refresh()
 
 
     def end(self):

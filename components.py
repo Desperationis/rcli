@@ -4,7 +4,7 @@ from typing import Optional
 from enums import CHOICE, SCENES
 import string
 
-class component:
+class component(ABC):
     def __init__(self, offset=(0,0)):
         self.offset = offset
 

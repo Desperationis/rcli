@@ -4,7 +4,7 @@ from typing import Optional
 from enums import CHOICE, SCENES
 from components import *
 
-class forum:
+class forum(ABC):
     def __init__(self, registerKeyFunc):
         self.registerKeyFunc = registerKeyFunc
 
@@ -19,8 +19,8 @@ class forum:
         pass
 
 class loadingforum(forum):
-    def __init__(self, text: str, registerKeyFunc):
-        super().__init__(registerKeyFunc)
+    def __init__(self, text: str):
+        super().__init__(None)
         self.components = [
                 textcomponent(text, (0, 1))
         ]
@@ -28,6 +28,9 @@ class loadingforum(forum):
     def draw(self, stdscr):
         for component in self.components:
             component.draw(stdscr)
+
+    def getdata(self):
+        return None
 
 class choiceforum(forum):
     def __init__(self, options, back: bool, extra: str, registerKeyFunc):
@@ -64,4 +67,6 @@ class fuzzyforum(forum):
         for component in self.components:
             component.draw(stdscr)
 
+    def getdata(self):
+        return None
 
