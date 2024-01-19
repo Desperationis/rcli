@@ -17,11 +17,13 @@ args = docopt(__doc__)
 if __name__ == "__main__":
     errorStr = ""
 
-    logging.basicConfig(filename="rcli.log",
-                    filemode='a',
-                    format='%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s',
-                    datefmt='%H:%M:%S',
-                    level=logging.DEBUG)
+    logging.basicConfig(
+        filename="rcli.log",
+        filemode="a",
+        format="%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s",
+        datefmt="%H:%M:%S",
+        level=logging.DEBUG,
+    )
 
     try:
         cli = cursedcli()
@@ -35,4 +37,3 @@ if __name__ == "__main__":
         cli.end()
         if len(errorStr) > 0:
             logging.error(errorStr)
-

@@ -25,11 +25,10 @@ class scene(ABC):
 
     @abstractmethod
     def getNextScene(self) -> Optional[int]:
-        """Returns None if not ready to switch.
-        """
+        """Returns None if not ready to switch."""
         pass
 
-    @abstractmethod 
+    @abstractmethod
     def getdata(self) -> Optional[object]:
         """If a scene passes data to another, this will return the data. None
         if the scene didn't return any. Yes, this is completely dependent on a
@@ -54,12 +53,15 @@ class choosefilescene(scene):
                 self.history.append(self.currentFolder.copy())
                 self.currentFolder = self.currentFolder[folder]
 
-
-
     def show(self, stdscr):
         if self.choiceForum == None:
             options = self.rclone.lsf(self.currentFolder)
-            self.choiceForum = choiceforum(options, len(self.history) > 0, "/".join(self.folderDir), self.registerKeyListener)
+            self.choiceForum = choiceforum(
+                options,
+                len(self.history) > 0,
+                "/".join(self.folderDir),
+                self.registerKeyListener,
+            )
 
         self.choiceForum.draw(stdscr)
 
@@ -80,9 +82,9 @@ class choosefilescene(scene):
                 self.keyListeners.clear()
                 self.choiceForum = None
 
-            elif node.endswith("/"): # It's a folder
+            elif node.endswith("/"):  # It's a folder
                 self.history.append(self.currentFolder.copy())
-                self.folderDir.append(node.replace("/",""))
+                self.folderDir.append(node.replace("/", ""))
                 self.currentFolder = self.currentFolder[node.replace("/", "")]
                 self.choiceForum = None
                 self.keyListeners.clear()
@@ -122,14 +124,20 @@ class fuzzyscene(scene):
             return self.fuzzyForum.getdata()
         return None
 
+
 class rclone:
-    def rclone(self, args : list[str], capture=False):
+    def rclone(self, args: list[str], capture=False):
         args.insert(0, "rclone")
 
         if not capture:
             os.system(" ".join(args))
         else:
-            process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+            process = subprocess.Popen(
+                args,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                universal_newlines=True,
+            )
             output, error = process.communicate()
 
             return output
@@ -141,7 +149,7 @@ class rclone:
 
     def getFileStructure(self, remote: str):
         paths = self.getAllPaths(remote)
-        
+
         fileStructure = {}
 
         for path in paths:
@@ -173,12 +181,9 @@ class rclone:
         return output
 
 
-
-
 class cursedcli:
     def __init__(self):
         self.stdscr = curses.initscr()
-
 
     def start(self):
         curses.noecho()
@@ -211,10 +216,11 @@ class cursedcli:
 
             if nextScene == SCENES.CHOOSE_FILE:
                 filePath: str = scene.getdata()
-                initialFolder = list(filter(None,filePath.split("/"))) # Removes empty strings
-                initialFolder = initialFolder[:-1] # Parent folder path
+                initialFolder = list(
+                    filter(None, filePath.split("/"))
+                )  # Removes empty strings
+                initialFolder = initialFolder[:-1]  # Parent folder path
                 scene = choosefilescene(fileStructure, initialFolder)
-
 
     def end(self):
         curses.nocbreak()
