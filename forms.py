@@ -60,7 +60,7 @@ class choiceforum(forum):
             self.choiceComponent,
             textcomponent(extra, textcomponent.NONE, (1, 1)),
             textcomponent(
-                "[d] download   [/] search",
+                "[d] download   [/] search      [jk] vim navigation     [h] back",
                 textcomponent.BOTTOM | textcomponent.BAR
             ),
         ]
