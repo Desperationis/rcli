@@ -1,156 +1,11 @@
 import curses
 from abc import ABC, abstractmethod
 from typing import Optional
-import string
+from enums import CHOICE, SCENES
+from forms import *
 import os
-import time
-import sys 
 import subprocess
 import logging
-
-class CHOICE:
-    BACK = 0b01
-    NONE = 0b00
-
-
-class component:
-    def __init__(self, offset=(0,0)):
-        self.offset = offset
-
-    @abstractmethod
-    def draw(self, stdscr):
-        pass
-
-class textcomponent(component):
-    def __init__(self, text, offset=(0,0)):
-        super().__init__(offset)
-        self.text = text
-
-    def draw(self, stdscr):
-        stdscr.addstr(self.offset[1], self.offset[0], self.text)
-
-    def handleinput(self, c):
-        pass
-
-class textinputcomponent(component):
-    def __init__(self, offset=(0,0)):
-        super().__init__(offset)
-        self.text = ""
-
-    def draw(self, stdscr):
-        stdscr.addstr(self.offset[1], self.offset[0], self.text)
-
-    def isvalid(self, c: int):
-        return str(chr(c)) in string.printable
-
-    def handleinput(self, c: int):
-        if c == curses.KEY_BACKSPACE:
-            self.text = self.text[:-1]
-        elif self.isvalid(c):
-            self.text += chr(c)
-
-class choicecomponent(component):
-    def __init__(self, choices: list[str], flags=CHOICE.NONE, offset=(0,0)):
-        super().__init__(offset)
-        self.choices = choices
-        self.choice = None
-        self.flags = flags
-
-        self.elements = []
-        self.elementIndex = 0
-
-        self.elements.extend(self.choices)
-        if flags & CHOICE.BACK:
-            self.elements.append(CHOICE.BACK)
-
-    def draw(self, stdscr):
-        stdscr.addstr(self.offset[1], self.offset[0], "Choose a file or folder:")
-
-        for i, option in enumerate(self.elements):
-            # Relative to origin
-            x = self.offset[0] + 5
-            y = self.offset[1] + 1 + i
-            content = option
-
-            if option == CHOICE.BACK:
-                content = "Back"
-                y += 1
-
-            if i == self.elementIndex:
-                x -= 2
-                content = f"> {content}"
-
-            stdscr.addstr(y, x, content)
-
-    def cursorOnChoice(self):
-        return self.elementIndex >= 0 and self.elementIndex < len(self.choices)
-
-    def cursorOnBack(self):
-        return self.elements[self.elementIndex] == CHOICE.BACK
-
-    def handleinput(self, c: int):
-        if c == curses.KEY_UP:
-            self.elementIndex -= 1
-        elif c == curses.KEY_DOWN:
-            self.elementIndex += 1
-        elif (c == curses.KEY_ENTER or c == 10 or c == "\n"):
-            if self.cursorOnChoice():
-                self.choice = self.choices[self.elementIndex]
-            if self.cursorOnBack():
-                self.choice = CHOICE.BACK
-
-        self.elementIndex = self.elementIndex % len(self.elements)
-
-
-class forum:
-    def __init__(self, registerKeyFunc):
-        self.registerKeyFunc = registerKeyFunc
-
-    @abstractmethod
-    def draw(self, stdscr):
-        pass
-
-    @abstractmethod
-    def getdata(self) -> Optional[object]:
-        """Returns None if user has not done something with this forum.
-        """
-        pass
-
-class loadingforum(forum):
-    def __init__(self, text: str, registerKeyFunc):
-        super().__init__(registerKeyFunc)
-        self.components = [
-                textcomponent(text, (0, 1))
-        ]
-
-    def draw(self, stdscr):
-        for component in self.components:
-            component.draw(stdscr)
-
-class choiceforum(forum):
-    def __init__(self, options, flags, extra: str, registerKeyFunc):
-        super().__init__(registerKeyFunc)
-        self.options = options
-        self.choiceComponent = choicecomponent(self.options, flags, (1,3))
-        self.components = [
-            self.choiceComponent,
-            textcomponent(extra, (1,1))
-        ]
-
-        for co in self.components:
-            registerKeyFunc(co.handleinput)
-
-
-    def draw(self, stdscr):
-        for component in self.components:
-            component.draw(stdscr)
-
-    def getdata(self):
-        if self.choiceComponent.choice != None:
-            return self.choiceComponent.choice
-
-        return None
-        
 
 
 
@@ -236,10 +91,7 @@ class cursedcli:
 
         while True:
             options = rcloneData.lsf(currentFolder)
-            flags = CHOICE.NONE
-            if len(history) > 0:
-                flags = CHOICE.BACK
-            choiceForum = choiceforum(options, flags, "/".join(folderDir), self.registerKeyListener)
+            choiceForum = choiceforum(options, len(history) > 0, "/".join(folderDir), self.registerKeyListener)
 
             while True:
                 self.stdscr.clear()
