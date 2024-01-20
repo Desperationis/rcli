@@ -54,7 +54,7 @@ class choiceforum(forum):
     def __init__(self, options, back: bool, extra: str, registerKeyFunc):
         super().__init__(registerKeyFunc)
         self.options = options
-        self.choiceComponent = choicecomponent(self.options, back, brect(4, 4, 20, 20))
+        self.choiceComponent = choicecomponent(self.options, back, brect(1, 3, 20, 20))
         self.components = [
             self.choiceComponent,
             textcomponent(extra, textcomponent.NONE, (1, 1)),
