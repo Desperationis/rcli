@@ -239,7 +239,7 @@ class rclonecache:
             with open(self.cacheStructure, "r") as file:
                 cache = json.load(file)
                 logging.info("Cache loaded.")
-                if time.time() - cache["timestamp"] > 60 * 60: # An Hour
+                if time.time() - cache["timestamp"] > 60 * 60:  # An Hour
                     forceUpdate = True
                     logging.info("Too old. Refreshing...")
                 else:
@@ -266,7 +266,7 @@ class rclonecache:
         if os.path.exists(self.cachePaths) and not forceUpdate:
             with open(self.cachePaths, "r") as file:
                 cache = json.load(file)
-                if time.time() - cache["timestamp"] > 60 * 60: # An Hour
+                if time.time() - cache["timestamp"] > 60 * 60:  # An Hour
                     forceUpdate = True
                 else:
                     return cache["data"]
@@ -298,7 +298,24 @@ class cursedcli:
 
     def main(self):
         self.stdscr.erase()
-        loadingforum("Loading database, please be patient.").draw(self.stdscr)
+
+        content = [
+            "                     /$$ /$$",
+            "                    | $$|__/",
+            "  /$$$$$$   /$$$$$$$| $$ /$$",
+            " /$$__  $$ /$$_____/| $$| $$",
+            "| $$  \__/| $$      | $$| $$",
+            "| $$      | $$      | $$| $$",
+            "| $$      |  $$$$$$$| $$| $$",
+            "|__/       \_______/|__/|__/",
+            "",
+            "v1.0.0",
+            "Copyright (c) 2024 Diego Contreras",
+            "MIT License",
+            "",
+            "Creating database and storing to cache, please be patient.",
+        ]
+        loadingforum(content).draw(self.stdscr)
         self.stdscr.refresh()
 
         cache = rclonecache()
@@ -329,7 +346,7 @@ class cursedcli:
                 scene = downloadscene(downloadPath, ".")
 
             if nextScene == SCENES.REFRESH_DATABASE:
-                loadingforum("Loading database, please be patient.").draw(self.stdscr)
+                loadingforum("Refreshing cache, please be patient.").draw(self.stdscr)
                 self.stdscr.refresh()
                 rcloneData = rclonecache()
                 fileStructure = rcloneData.getFileStructure(
