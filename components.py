@@ -249,6 +249,8 @@ class choicecomponent(component):
             self.elementIndex -= 1
         elif c == curses.KEY_DOWN or c == ord("j"):
             self.elementIndex += 1
+        elif c == ord("u"):
+            self.choice = SelectedOption(CHOICE.REFRESH)
         elif c == curses.KEY_ENTER or c == 10:
             if self.cursorOnChoice():
                 self.choice = SelectedOption(

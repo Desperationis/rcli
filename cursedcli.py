@@ -7,6 +7,7 @@ import os
 import time
 import subprocess
 import logging
+import json
 
 
 class scene(ABC):
@@ -98,6 +99,9 @@ class choosefilescene(scene):
                 fullPath = os.path.join(folder, choice.data)
                 self.data = fullPath
                 self.nextScene = SCENES.DOWNLOAD
+
+            elif choice.choice == CHOICE.REFRESH:
+                self.nextScene = SCENES.REFRESH_DATABASE
 
     def getNextScene(self) -> Optional[int]:
         return self.nextScene
@@ -219,6 +223,63 @@ class rclone:
         return output
 
 
+class rclonecache:
+    def __init__(self):
+        self.cacheStructure = os.path.expanduser("~/.cache/rcli/cacheStructure.json")
+        self.cachePaths = os.path.expanduser("~/.cache/rcli/cachePaths.json")
+        self.rclone = rclone()
+        os.makedirs(os.path.expanduser("~/.cache/rcli/"), exist_ok=True)
+
+    def getFileStructure(self, remote: str, forceUpdate=False):
+        if not os.path.exists(self.cacheStructure):
+            forceUpdate = True
+
+        if os.path.exists(self.cacheStructure) and not forceUpdate:
+            logging.info("Loading from cache...")
+            with open(self.cacheStructure, "r") as file:
+                cache = json.load(file)
+                logging.info("Cache loaded.")
+                if time.time() - cache["timestamp"] > 60 * 60: # An Hour
+                    forceUpdate = True
+                    logging.info("Too old. Refreshing...")
+                else:
+                    logging.info("Returning data")
+                    return cache["data"]
+
+        if forceUpdate:
+            fileStructure = self.rclone.getFileStructure(remote)
+            data = {}
+            data["timestamp"] = time.time()
+            data["data"] = fileStructure
+            logging.info("Saved filestructure, writing to cache...")
+            with open(self.cacheStructure, "w") as file:
+                json.dump(data, file, indent=2)
+            logging.info("Write complete. Here is the file structure:")
+            logging.info(fileStructure)
+
+            return fileStructure
+
+    def getPaths(self, remote: str, forceUpdate=False):
+        if not os.path.exists(self.cachePaths):
+            forceUpdate = True
+
+        if os.path.exists(self.cachePaths) and not forceUpdate:
+            with open(self.cachePaths, "r") as file:
+                cache = json.load(file)
+                if time.time() - cache["timestamp"] > 60 * 60: # An Hour
+                    forceUpdate = True
+                else:
+                    return cache["data"]
+        else:
+            paths = self.rclone.getAllPaths(remote)
+            data = {}
+            data["timestamp"] = time.time()
+            data["data"] = paths
+            with open(self.cachePaths, "w") as file:
+                json.dump(data, file, indent=2)
+            return paths
+
+
 class cursedcli:
     def __init__(self, remote):
         self.stdscr = curses.initscr()
@@ -236,13 +297,13 @@ class cursedcli:
         curses.init_pair(1, curses.COLOR_CYAN, -1)
 
     def main(self):
-        self.stdscr.clear()
+        self.stdscr.erase()
         loadingforum("Loading database, please be patient.").draw(self.stdscr)
         self.stdscr.refresh()
 
-        rcloneData = rclone()
-        allPaths = rcloneData.getAllPaths(self.remote)
-        fileStructure = rcloneData.getFileStructure(self.remote)
+        cache = rclonecache()
+        fileStructure = cache.getFileStructure(self.remote)
+        allPaths = cache.getPaths(self.remote)
 
         scene = choosefilescene(fileStructure)
         while True:
@@ -266,6 +327,16 @@ class cursedcli:
                 downloadPath: str = self.remote + scene.getdata()
                 logging.debug(f"Will download from path {downloadPath}")
                 scene = downloadscene(downloadPath, ".")
+
+            if nextScene == SCENES.REFRESH_DATABASE:
+                loadingforum("Loading database, please be patient.").draw(self.stdscr)
+                self.stdscr.refresh()
+                rcloneData = rclonecache()
+                fileStructure = rcloneData.getFileStructure(
+                    self.remote, forceUpdate=True
+                )
+                allPaths = rcloneData.getPaths(self.remote, forceUpdate=True)
+                scene = choosefilescene(fileStructure, "")
 
     def end(self):
         curses.nocbreak()

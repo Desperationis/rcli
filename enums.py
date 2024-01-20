@@ -3,6 +3,7 @@ class CHOICE:
     BACK = 0b0000001
     SELECTED = 0b0000010
     DOWNLOAD = 0b0000100
+    REFRESH = 0b0001000
 
 
 class SelectedOption:
@@ -12,6 +13,7 @@ class SelectedOption:
 
 
 class SCENES:
-    CHOOSE_FILE = 0b001
-    FUZZY_SEARCH = 0b010
-    DOWNLOAD = 0b100
+    CHOOSE_FILE = 0b0001
+    FUZZY_SEARCH = 0b0010
+    DOWNLOAD = 0b0100
+    REFRESH_DATABASE = 0b1000
