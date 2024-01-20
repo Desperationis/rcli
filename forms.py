@@ -33,13 +33,12 @@ class loadingforum(forum):
     def getdata(self):
         return None
 
+
 class commandforum(forum):
     def __init__(self, command: list[str]):
         super().__init__(None)
         self.commandcomponent = commandcomponent(command)
-        self.components = [
-            self.commandcomponent
-        ]
+        self.components = [self.commandcomponent]
 
     def draw(self, stdscr):
         for component in self.components:
@@ -55,13 +54,13 @@ class choiceforum(forum):
     def __init__(self, options, back: bool, extra: str, registerKeyFunc):
         super().__init__(registerKeyFunc)
         self.options = options
-        self.choiceComponent = choicecomponent(self.options, back, (1, 3))
+        self.choiceComponent = choicecomponent(self.options, back, brect(4, 4, 20, 20))
         self.components = [
             self.choiceComponent,
             textcomponent(extra, textcomponent.NONE, (1, 1)),
             textcomponent(
                 "[d] download   [/] search      [jk] vim navigation     [h] back",
-                textcomponent.BOTTOM | textcomponent.BAR
+                textcomponent.BOTTOM | textcomponent.BAR,
             ),
         ]
 
@@ -85,10 +84,7 @@ class fuzzyforum(forum):
         self.components = [
             textcomponent("Search file: ", textcomponent.NONE, (1, 1)),
             self.fuzzycomponent,
-            textcomponent(
-                "[esc] back",
-                textcomponent.BOTTOM | textcomponent.BAR
-            ),
+            textcomponent("[esc] back", textcomponent.BOTTOM | textcomponent.BAR),
         ]
 
         for co in self.components:

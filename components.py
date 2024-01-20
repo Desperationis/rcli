@@ -2,6 +2,7 @@ import curses
 from abc import ABC, abstractmethod
 from typing import Optional
 from enums import CHOICE, SCENES, SelectedOption
+from brect import brect
 import string
 import logging
 import threading
@@ -67,6 +68,7 @@ class textcomponent(component):
     def handleinput(self, c):
         pass
 
+
 class commandcomponent(component):
     def __init__(self, command: list[str], offset=(0, 0)):
         super().__init__(offset)
@@ -87,10 +89,10 @@ class commandcomponent(component):
                     self.command,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
-                    text=True
+                    text=True,
                 )
 
-                for line in iter(self.process.stdout.readline, ''):
+                for line in iter(self.process.stdout.readline, ""):
                     self.output += line
 
             finally:
@@ -116,7 +118,6 @@ class commandcomponent(component):
         pass
 
 
-
 class fuzzycomponent(component):
     def __init__(self, data, offset=(0, 0)):
         super().__init__(offset)
@@ -135,7 +136,6 @@ class fuzzycomponent(component):
             self.selectedIndex %= maxlines
         else:
             self.selectedIndex = 0
-
 
         stdscr.addstr(self.offset[1], self.offset[0], self.inputtext)
         for i, result in enumerate(topresults):
@@ -165,7 +165,6 @@ class fuzzycomponent(component):
         results = [result[0] for result in results]
         self.topresults = results
 
-
     def isvalid(self, c: int):
         return str(chr(c)) in string.printable
 
@@ -176,7 +175,7 @@ class fuzzycomponent(component):
         elif c == curses.KEY_ENTER or c == 10:
             if len(self.topresults) > 0:
                 self.choice = self.topresults[self.selectedIndex]
-        elif c == 27: # Escape
+        elif c == 27:  # Escape
             self.choice = ""
         elif c == curses.KEY_DOWN or c == 9:  # Tab
             self.selectedIndex += 1
@@ -188,11 +187,13 @@ class fuzzycomponent(component):
 
 
 class choicecomponent(component):
-    def __init__(self, choices: list[str], back=False, offset=(0, 0)):
-        super().__init__(offset)
+    def __init__(self, choices: list[str], back=False, rect=brect(0, 0, 10, 10)):
+        super().__init__((0, 0))
         self.choices = choices
         self.choice = SelectedOption()
         self.back = back
+        self.brect = rect
+        self.selectChar = "> "
 
         self.elements = []
         self.elementIndex = 0
@@ -202,26 +203,36 @@ class choicecomponent(component):
             self.elements.append(CHOICE.BACK)
 
     def draw(self, stdscr):
-        stdscr.addstr(self.offset[1], self.offset[0], "Choose a file or folder:")
+        # -1 for back button
+        numChoicesVisible = self.brect.h - 1
 
-        for i, option in enumerate(self.elements):
-            # Relative to origin
-            x = self.offset[0] + 5
-            y = self.offset[1] + 1 + i
+        startingIndex = max(0, (self.elementIndex + 1) - numChoicesVisible)
+
+        for i in range(startingIndex, len(self.elements)):
+            option = self.elements[i]
+            x = self.brect.x + len(self.selectChar)
+            y = self.brect.y + (i - startingIndex)
             content = option
+
+            # -1 for back
+            if option != CHOICE.BACK and y >= self.brect.bottom():
+                continue
 
             if option == CHOICE.BACK:
                 content = "Back"
-                y += 1
+                y = min(y + 1, self.brect.bottom())
 
             if i == self.elementIndex:
-                x -= 2
-                content = f"> {content}"
+                x -= len(self.selectChar)
+                content = f"{self.selectChar}{content}"
 
-            if option != CHOICE.BACK and option.endswith("/"):
-                stdscr.addstr(y, x, content, curses.color_pair(1))
-            else:
-                stdscr.addstr(y, x, content)
+            try:
+                if option != CHOICE.BACK and option.endswith("/"):
+                    stdscr.addstr(y, x, content, curses.color_pair(1))
+                else:
+                    stdscr.addstr(y, x, content)
+            except curses.error:
+                pass
 
     def cursorOnChoice(self):
         return self.elementIndex >= 0 and self.elementIndex < len(self.choices)
@@ -233,7 +244,6 @@ class choicecomponent(component):
         """If nothing selected, CHOICE.NONE + None"""
         return self.choice
 
-
     def handleinput(self, c: int):
         if c == curses.KEY_UP or c == ord("k"):
             self.elementIndex -= 1
@@ -241,13 +251,17 @@ class choicecomponent(component):
             self.elementIndex += 1
         elif c == curses.KEY_ENTER or c == 10:
             if self.cursorOnChoice():
-                self.choice = SelectedOption(CHOICE.SELECTED, self.choices[self.elementIndex])
+                self.choice = SelectedOption(
+                    CHOICE.SELECTED, self.choices[self.elementIndex]
+                )
             if self.cursorOnBack():
                 self.choice = SelectedOption(CHOICE.BACK)
         elif c == ord("h") and self.back:
             self.choice = SelectedOption(CHOICE.BACK)
 
         elif c == ord("d"):
-            self.choice = SelectedOption(CHOICE.DOWNLOAD, self.choices[self.elementIndex])
+            self.choice = SelectedOption(
+                CHOICE.DOWNLOAD, self.choices[self.elementIndex]
+            )
 
         self.elementIndex = self.elementIndex % len(self.elements)
