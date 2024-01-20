@@ -189,9 +189,7 @@ class rclone:
         paths = [path.lstrip() for path in paths]
         return [" ".join(path.split(" ")[1:]) for path in paths]
 
-    def getFileStructure(self, remote: str):
-        paths = self.getAllPaths(remote)
-
+    def getFileStructure(self, paths: list[str]):
         fileStructure = {}
 
         for path in paths:
@@ -225,59 +223,29 @@ class rclone:
 
 class rclonecache:
     def __init__(self):
-        self.cacheStructure = os.path.expanduser("~/.cache/rcli/cacheStructure.json")
-        self.cachePaths = os.path.expanduser("~/.cache/rcli/cachePaths.json")
+        self.cachePath = os.path.expanduser("~/.cache/rcli/cache.json")
         self.rclone = rclone()
         os.makedirs(os.path.expanduser("~/.cache/rcli/"), exist_ok=True)
 
     def getFileStructure(self, remote: str, forceUpdate=False):
-        if not os.path.exists(self.cacheStructure):
-            forceUpdate = True
-
-        if os.path.exists(self.cacheStructure) and not forceUpdate:
-            logging.info("Loading from cache...")
-            with open(self.cacheStructure, "r") as file:
-                cache = json.load(file)
-                logging.info("Cache loaded.")
-                if time.time() - cache["timestamp"] > 60 * 60:  # An Hour
-                    forceUpdate = True
-                    logging.info("Too old. Refreshing...")
-                else:
-                    logging.info("Returning data")
-                    return cache["data"]
-
-        if forceUpdate:
-            fileStructure = self.rclone.getFileStructure(remote)
-            data = {}
-            data["timestamp"] = time.time()
-            data["data"] = fileStructure
-            logging.info("Saved filestructure, writing to cache...")
-            with open(self.cacheStructure, "w") as file:
-                json.dump(data, file, indent=2)
-            logging.info("Write complete. Here is the file structure:")
-            logging.info(fileStructure)
-
-            return fileStructure
+        paths = self.getPaths(remote, forceUpdate)
+        return self.rclone.getFileStructure(paths)
 
     def getPaths(self, remote: str, forceUpdate=False):
-        if not os.path.exists(self.cachePaths):
-            forceUpdate = True
-
-        if os.path.exists(self.cachePaths) and not forceUpdate:
-            with open(self.cachePaths, "r") as file:
+        if os.path.exists(self.cachePath) and not forceUpdate:
+            with open(self.cachePath, "r") as file:
                 cache = json.load(file)
-                if time.time() - cache["timestamp"] > 60 * 60:  # An Hour
-                    forceUpdate = True
-                else:
+                if time.time() - cache["timestamp"] < 60 * 60:  # An Hour
                     return cache["data"]
-        else:
-            paths = self.rclone.getAllPaths(remote)
-            data = {}
-            data["timestamp"] = time.time()
-            data["data"] = paths
-            with open(self.cachePaths, "w") as file:
-                json.dump(data, file, indent=2)
-            return paths
+
+        # Writes to cache
+        paths = self.rclone.getAllPaths(remote)
+        data = {}
+        data["timestamp"] = time.time()
+        data["data"] = paths
+        with open(self.cachePath, "w") as file:
+            json.dump(data, file, indent=2)
+        return paths
 
 
 class cursedcli:
