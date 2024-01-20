@@ -227,25 +227,26 @@ class rclonecache:
         self.rclone = rclone()
         os.makedirs(os.path.expanduser("~/.cache/rcli/"), exist_ok=True)
 
-    def getFileStructure(self, remote: str, forceUpdate=False):
-        paths = self.getPaths(remote, forceUpdate)
+    def getFileStructure(self, remote: str):
+        paths = self.getPaths(remote)
         return self.rclone.getFileStructure(paths)
 
-    def getPaths(self, remote: str, forceUpdate=False):
-        if os.path.exists(self.cachePath) and not forceUpdate:
-            with open(self.cachePath, "r") as file:
-                cache = json.load(file)
-                if time.time() - cache["timestamp"] < 60 * 60:  # An Hour
-                    return cache["data"]
+    def getPaths(self, remote: str):
+        if not os.path.exists(self.cachePath):
+            self.refreshCache(remote)
 
-        # Writes to cache
+        with open(self.cachePath, "r") as file:
+            cache = json.load(file)
+            if time.time() - cache["timestamp"] < 60 * 60:  # An Hour
+                return cache["data"]
+
+    def refreshCache(self, remote: str):
         paths = self.rclone.getAllPaths(remote)
         data = {}
         data["timestamp"] = time.time()
         data["data"] = paths
         with open(self.cachePath, "w") as file:
             json.dump(data, file, indent=2)
-        return paths
 
 
 class cursedcli:
@@ -316,11 +317,10 @@ class cursedcli:
             if nextScene == SCENES.REFRESH_DATABASE:
                 loadingforum("Refreshing cache, please be patient.").draw(self.stdscr)
                 self.stdscr.refresh()
-                rcloneData = rclonecache()
-                fileStructure = rcloneData.getFileStructure(
-                    self.remote, forceUpdate=True
-                )
-                allPaths = rcloneData.getPaths(self.remote, forceUpdate=True)
+                cache = rclonecache()
+                cache.refreshCache()
+                fileStructure = cache.getFileStructure(self.remote)
+                allPaths = cache.getPaths(self.remote)
                 scene = choosefilescene(fileStructure, "")
 
     def end(self):
