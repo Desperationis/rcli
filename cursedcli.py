@@ -69,7 +69,6 @@ class cursedcli:
 
             if nextScene == SCENES.DOWNLOAD:
                 downloadPath: str = self.remote + scene.getdata()
-                logging.debug(f"Will download from path {downloadPath}")
                 scene = downloadscene(downloadPath, ".")
 
             if nextScene == SCENES.REFRESH_DATABASE:
@@ -80,6 +79,9 @@ class cursedcli:
                 fileStructure = cache.getFileStructure(self.remote)
                 allPaths = cache.getPaths(self.remote)
                 scene = choosefilescene(fileStructure, "")
+
+            if nextScene == SCENES.EXIT:
+                break
 
     def end(self):
         curses.nocbreak()

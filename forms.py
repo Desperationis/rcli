@@ -66,7 +66,7 @@ class choiceforum(forum):
             self.choiceComponent,
             textcomponent(extra, textcomponent.NONE, (1, 1)),
             textcomponent(
-                "[d] download   [u] refresh database    [/] search    [jk] vim navigation   [h] back",
+                "[d]ownload   [u] refresh   [/] search    [jk] up/down   [h] back    [q] quit",
                 textcomponent.BOTTOM | textcomponent.BAR,
             ),
         ]

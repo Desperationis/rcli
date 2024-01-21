@@ -99,6 +99,9 @@ class choosefilescene(scene):
             elif choice.choice == CHOICE.REFRESH:
                 self.nextScene = SCENES.REFRESH_DATABASE
 
+            elif choice.choice == CHOICE.QUIT:
+                self.nextScene = SCENES.EXIT
+
     def getNextScene(self) -> Optional[int]:
         return self.nextScene
 

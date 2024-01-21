@@ -96,7 +96,6 @@ class commandcomponent(component):
                     self.output += line
 
             finally:
-                logging.info(self.output)
                 self.isDone = True
 
         # Create and start a new thread for running the subprocess
@@ -265,5 +264,8 @@ class choicecomponent(component):
             self.choice = SelectedOption(
                 CHOICE.DOWNLOAD, self.choices[self.elementIndex]
             )
+
+        elif c == ord("q"):
+            self.choice = SelectedOption(CHOICE.QUIT)
 
         self.elementIndex = self.elementIndex % len(self.elements)
