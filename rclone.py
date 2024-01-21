@@ -73,17 +73,32 @@ class rclonecache:
         if not os.path.exists(self.cachePath):
             self.refreshCache(remote)
 
+        cache = {}
         with open(self.cachePath, "r") as file:
             cache = json.load(file)
-            if time.time() - cache["timestamp"] < 60 * 60:  # An Hour
-                return cache["data"]
+
+        if remote not in cache:
+            self.refreshCache(remote)
+            return self.getPaths(remote)
+
+        if time.time() - cache[remote]["timestamp"] > 60 * 60:  # An Hour
+            self.refreshCache(remote)
+            return self.getPaths(remote)
+
+        return cache[remote]["data"]
 
     def refreshCache(self, remote: str):
+        cache = {}
+        if os.path.exists(self.cachePath):
+            with open(self.cachePath, "r") as file:
+                cache = json.load(file)
+
         paths = self.rclone.getAllPaths(remote)
-        data = {}
-        data["timestamp"] = time.time()
-        data["data"] = paths
+        data = { remote: {} }
+        data[remote]["timestamp"] = time.time()
+        data[remote]["data"] = paths
+        cache.update(data)
         with open(self.cachePath, "w") as file:
-            json.dump(data, file, indent=2)
+            json.dump(cache, file, indent=2)
 
 
