@@ -1,5 +1,6 @@
 import curses
 from typing import Optional
+from threading import Thread
 from enums import SCENES
 from forms import *
 from scenes import *
@@ -23,9 +24,8 @@ class cursedcli:
 
         curses.init_pair(1, curses.COLOR_CYAN, -1)
 
-    def main(self):
-        self.stdscr.erase()
 
+    def main(self):
         content = [
             "                     /$$ /$$",
             "                    | $$|__/",
@@ -42,12 +42,33 @@ class cursedcli:
             "",
             "Creating database and storing to cache, please be patient.",
         ]
-        loadingforum(content).draw(self.stdscr)
-        self.stdscr.refresh()
 
-        cache = rclonecache()
-        fileStructure = cache.getFileStructure(self.remote)
-        allPaths = cache.getPaths(self.remote)
+        class LoadThread(Thread):
+            def __init__(self, remote):
+                Thread.__init__(self)
+                self.data = None
+                self.remote = remote
+         
+            def run(self):
+                cache = rclonecache()
+                fileStructure = cache.getFileStructure(self.remote)
+                allPaths = cache.getPaths(self.remote)
+
+                self.data = (fileStructure, allPaths)
+
+
+        task = LoadThread(self.remote)
+        task.start()
+        while task.is_alive():
+            self.stdscr.erase()
+            loadingforum(content).draw(self.stdscr)
+            self.stdscr.refresh()
+            time.sleep(0.1)
+            
+        task.join()
+        data = task.data
+        fileStructure = data[0]
+        allPaths = data[1]
 
         scene = choosefilescene(fileStructure)
         while True:

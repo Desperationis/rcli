@@ -22,19 +22,21 @@ class forum(ABC):
 class loadingforum(forum):
     def __init__(self, text: str | list[str]):
         super().__init__(None)
-        self.components = []
-        if isinstance(text, str):
-            self.components.append(textcomponent(text, textcomponent.MIDDLE | textcomponent.TEXT_CENTERED))
-        else:
-            startingy = curses.LINES // 2 - len(text)//2
-            for i, line in enumerate(text):
-                y = startingy + i
-                self.components.append(textcomponent(line, textcomponent.TEXT_CENTERED, (0,y)))
-
+        self.text = text
 
 
     def draw(self, stdscr):
-        for component in self.components:
+        components = []
+        if isinstance(self.text, str):
+            components.append(textcomponent(self.text, textcomponent.MIDDLE | textcomponent.TEXT_CENTERED))
+        else:
+            rows, cols = stdscr.getmaxyx()
+            startingy = rows // 2 - len(self.text)//2
+            for i, line in enumerate(self.text):
+                y = startingy + i
+                components.append(textcomponent(line, textcomponent.TEXT_CENTERED, (0,y)))
+
+        for component in components:
             component.draw(stdscr)
 
     def getdata(self):
