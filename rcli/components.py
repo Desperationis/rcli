@@ -1,8 +1,8 @@
 import curses
 from abc import ABC, abstractmethod
 from typing import Optional
-from enums import CHOICE, SCENES, SelectedOption
-from brect import brect
+from .enums import CHOICE, SCENES, SelectedOption
+from .brect import brect
 import string
 import logging
 import threading

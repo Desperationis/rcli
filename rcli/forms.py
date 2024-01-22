@@ -1,8 +1,8 @@
 import curses
 from abc import ABC, abstractmethod
 from typing import Optional
-from enums import CHOICE, SCENES
-from components import *
+from .enums import CHOICE
+from .components import *
 
 
 class forum(ABC):

@@ -1,10 +1,10 @@
 import curses
 from typing import Optional
 from threading import Thread
-from enums import SCENES
-from forms import *
-from scenes import *
-from rclone import *
+from .enums import SCENES
+from .forms import *
+from .scenes import *
+from .rclone import *
 import logging
 
 

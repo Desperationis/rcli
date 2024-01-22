@@ -1,29 +1,29 @@
 #!/usr/bin/env python3
 """
 Usage:
-    rcli <remote>
+    rcli [-v] <remote>
     rcli -h
 
 """
 
 from docopt import docopt
-from cursedcli import cursedcli
+from .cursedcli import cursedcli
 import logging
 import traceback
 
 
-args = docopt(__doc__)
-
-if __name__ == "__main__":
+def main():
+    args = docopt(__doc__)
     errorStr = ""
 
-    logging.basicConfig(
-        filename="rcli.log",
-        filemode="a",
-        format="%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s",
-        datefmt="%H:%M:%S",
-        level=logging.DEBUG,
-    )
+    if args["-v"]:
+        logging.basicConfig(
+            filename="rcli.log",
+            filemode="a",
+            format="%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s",
+            datefmt="%H:%M:%S",
+            level=logging.DEBUG,
+        )
 
     try:
         cli = cursedcli(args["<remote>"])

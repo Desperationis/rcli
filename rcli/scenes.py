@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
 from typing import Optional, List, Callable
-from enums import CHOICE, SCENES
-from rclone import *
-from forms import *
+from .enums import CHOICE, SCENES
+from .rclone import *
+from .forms import *
 import os
 import time
 
