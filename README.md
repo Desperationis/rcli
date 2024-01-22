@@ -1,6 +1,6 @@
 <!-- MANPAGE: BEGIN EXCLUDED SECTION -->
 <div align="center">
-![rcli](https://raw.githubusercontent.com/Desperationis/rcli/dev/.github/banner.png)
+   <img width="500" alt="rcli Logo" src="https://raw.githubusercontent.com/Desperationis/rcli/dev/.github/banner.png">
 </div>
 <!-- MANPAGE: END EXCLUDED SECTION -->
 
