@@ -3,3 +3,4 @@ rcli.log
 build/
 dist/
 rcli.egg-info/
+rclonecli.egg-info/

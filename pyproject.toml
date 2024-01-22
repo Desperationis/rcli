@@ -3,11 +3,22 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "rcli"
+name = "rclonecli"
 version = "1.0.0"
 dependencies = [
     "docopt>=0.6.2"
 ]
+description = "A CLI Interface for rclone"
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+]
+
+[project.urls]
+Homepage = "https://github.com/Desperationis/rcli"
+Issues = "https://github.com/Desperationis/rcli/issues"
 
 [project.scripts]
 rcli = "rcli:main"
