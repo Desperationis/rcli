@@ -93,7 +93,7 @@ class choosefilescene(scene):
                 # Assemble full rclone path
                 folder = "/".join(self.folderDir)
                 fullPath = os.path.join(folder, choice.data)
-                self.data = fullPath
+                self.data = (fullPath, choice.data.endswith("/"))
                 self.nextScene = SCENES.DOWNLOAD
 
             elif choice.choice == CHOICE.REFRESH:

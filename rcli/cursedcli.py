@@ -89,8 +89,13 @@ class cursedcli:
                 scene = choosefilescene(fileStructure, initialFolder)
 
             if nextScene == SCENES.DOWNLOAD:
-                downloadPath: str = self.remote + scene.getdata()
-                scene = downloadscene(downloadPath, ".")
+                downloadPath: str = self.remote + scene.getdata()[0]
+
+                # If a folder
+                if scene.getdata()[1]:
+                    scene = downloadscene(downloadPath, scene.getdata()[0])
+                else:
+                    scene = downloadscene(downloadPath, ".")
 
             if nextScene == SCENES.REFRESH_DATABASE:
                 loadingforum("Refreshing cache, please be patient.").draw(self.stdscr)
