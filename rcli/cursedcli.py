@@ -99,12 +99,13 @@ class cursedcli:
 
             if nextScene == SCENES.REFRESH_DATABASE:
                 loadingforum("Refreshing cache, please be patient.").draw(self.stdscr)
+                oldFolder = scene.folderDir
                 self.stdscr.refresh()
                 cache = rclonecache()
                 cache.refreshCache(self.remote)
                 fileStructure = cache.getFileStructure(self.remote)
                 allPaths = cache.getPaths(self.remote)
-                scene = choosefilescene(fileStructure, "")
+                scene = choosefilescene(fileStructure, oldFolder)
 
             if nextScene == SCENES.EXIT:
                 break
