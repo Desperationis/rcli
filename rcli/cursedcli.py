@@ -36,7 +36,7 @@ class cursedcli:
             "| $$      |  $$$$$$$| $$| $$",
             "|__/       \_______/|__/|__/",
             "",
-            "v1.0.2",
+            "v1.1.0",
             "Copyright (c) 2024 Diego Contreras",
             "MIT License",
             "",
