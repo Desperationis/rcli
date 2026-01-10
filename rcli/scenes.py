@@ -139,11 +139,12 @@ class fuzzyscene(scene):
 
 
 class downloadscene(scene):
-    def __init__(self, downloadPath, destination):
+    def __init__(self, downloadPath, destination, folderDir=None):
         super().__init__()
         self.rclone = rclone()
         self.downloadPath = downloadPath
         self.destination = destination
+        self.folderDir = folderDir if folderDir else []
         self.nextScene = None
         self.commandforum = commandforum(
             ["rclone", "copy", "-P", self.downloadPath, self.destination]
@@ -162,7 +163,9 @@ class downloadscene(scene):
 
     def getdata(self) -> Optional[object]:
         if self.commandforum.getdata() == True:
-            return ""  # Go to root folder of choosefilescene
+            # Return path that restores to the original folder
+            # Adding a dummy element since cursedcli removes the last element
+            return "/".join(self.folderDir + ["_"])
         return None
 
 
