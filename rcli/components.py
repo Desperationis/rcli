@@ -161,15 +161,23 @@ class commandcomponent(component):
     def draw(self, stdscr):
         rows, cols = stdscr.getmaxyx()
 
-        # Show only the last (rows - offset) lines
-        max_lines = rows - self.offset[1] - 1
+        # Show only lines that fit on screen
+        max_lines = rows - 2
         visible_lines = self.lines[-max_lines:] if self.lines else []
 
-        for i, line in enumerate(visible_lines):
-            # Truncate line to fit screen width
-            display_line = line[:cols - self.offset[0] - 1]
+        # Strip leading whitespace from all lines
+        stripped_lines = [line.lstrip()[:cols - 1] for line in visible_lines]
+
+        # Find the longest line to determine block width
+        max_width = max((len(line) for line in stripped_lines), default=0)
+
+        # Center the block vertically and horizontally
+        start_y = (rows - len(stripped_lines)) // 2
+        start_x = max(0, (cols - max_width) // 2)
+
+        for i, display_line in enumerate(stripped_lines):
             try:
-                stdscr.addstr(self.offset[1] + i, self.offset[0], display_line)
+                stdscr.addstr(start_y + i, start_x, display_line)
             except curses.error:
                 pass
 
