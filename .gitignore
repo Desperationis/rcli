@@ -4,3 +4,5 @@ build/
 dist/
 rcli.egg-info/
 rclonecli.egg-info/
+.build-venv/
+CLAUDE.md

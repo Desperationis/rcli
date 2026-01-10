@@ -5,6 +5,7 @@ from .enums import SCENES
 from .forms import *
 from .scenes import *
 from .rclone import *
+from . import __version__
 import logging
 
 
@@ -36,7 +37,7 @@ class cursedcli:
             "| $$      |  $$$$$$$| $$| $$",
             "|__/       \_______/|__/|__/",
             "",
-            "v1.1.0",
+            f"v{__version__}",
             "Copyright (c) 2024 Diego Contreras",
             "MIT License",
             "",
@@ -90,12 +91,13 @@ class cursedcli:
 
             if nextScene == SCENES.DOWNLOAD:
                 downloadPath: str = self.remote + scene.getdata()[0]
+                folderDir = scene.folderDir
 
                 # If a folder
                 if scene.getdata()[1]:
-                    scene = downloadscene(downloadPath, scene.getdata()[0])
+                    scene = downloadscene(downloadPath, scene.getdata()[0], folderDir)
                 else:
-                    scene = downloadscene(downloadPath, ".")
+                    scene = downloadscene(downloadPath, ".", folderDir)
 
             if nextScene == SCENES.REFRESH_DATABASE:
                 loadingforum("Refreshing cache, please be patient.").draw(self.stdscr)
