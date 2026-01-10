@@ -10,6 +10,7 @@ CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+VENV_DIR="$SCRIPT_DIR/.build-venv"
 cd "$SCRIPT_DIR"
 
 # Extract version from rcli/__init__.py
@@ -23,17 +24,12 @@ echo -e "Package: ${GREEN}rclonecli${NC}"
 echo -e "Version: ${GREEN}${VERSION}${NC}"
 echo ""
 
-# Check for required tools
-check_tool() {
-    if ! command -v "$1" &> /dev/null; then
-        echo -e "${RED}Error: $1 is not installed.${NC}"
-        echo -e "Install with: ${YELLOW}pip install $2${NC}"
-        exit 1
-    fi
-}
-
-check_tool "python3" "python3"
-check_tool "twine" "twine"
+# Install uv if not present
+if ! command -v uv &> /dev/null; then
+    echo -e "${YELLOW}Installing uv...${NC}"
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+    export PATH="$HOME/.local/bin:$PATH"
+fi
 
 # Confirm before proceeding
 echo -e "${YELLOW}This script will:${NC}"
@@ -50,7 +46,15 @@ fi
 # Clean old builds
 echo ""
 echo -e "${CYAN}Cleaning old build artifacts...${NC}"
-rm -rf dist/ build/ *.egg-info rcli.egg-info/
+rm -rf dist/ build/ *.egg-info rcli.egg-info/ "$VENV_DIR"
+echo -e "${GREEN}Done.${NC}"
+
+# Create build environment with uv
+echo ""
+echo -e "${CYAN}Creating build environment...${NC}"
+uv venv "$VENV_DIR"
+source "$VENV_DIR/bin/activate"
+uv pip install build twine
 echo -e "${GREEN}Done.${NC}"
 
 # Build the package
@@ -99,6 +103,10 @@ if [[ "$repo_choice" == "1" ]]; then
 else
     twine upload dist/*
 fi
+
+# Deactivate and clean up the build venv
+deactivate
+rm -rf "$VENV_DIR"
 
 echo ""
 echo -e "${GREEN}========================================${NC}"
