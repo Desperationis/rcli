@@ -5,6 +5,7 @@ from .enums import SCENES
 from .forms import *
 from .scenes import *
 from .rclone import *
+from . import __version__
 import logging
 
 
@@ -36,7 +37,7 @@ class cursedcli:
             "| $$      |  $$$$$$$| $$| $$",
             "|__/       \_______/|__/|__/",
             "",
-            "v1.1.0",
+            f"v{__version__}",
             "Copyright (c) 2024 Diego Contreras",
             "MIT License",
             "",
