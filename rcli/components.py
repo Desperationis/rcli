@@ -74,7 +74,7 @@ class commandcomponent(component):
         super().__init__(offset)
         self.command = command
         self.process = None
-        self.output = ""
+        self.lines = []  # Store lines as a list for proper terminal handling
         self.isDone = False
 
         # Start the subprocess in a separate thread
@@ -92,8 +92,64 @@ class commandcomponent(component):
                     text=True,
                 )
 
-                for line in iter(self.process.stdout.readline, ""):
-                    self.output += line
+                # Read character by character to properly handle \r and ANSI escapes
+                current_line = ""
+                escape_seq = ""
+                in_escape = False
+
+                while True:
+                    char = self.process.stdout.read(1)
+                    if not char:
+                        break
+
+                    # Handle ANSI escape sequences (e.g., \033[8A for cursor up)
+                    if char == '\033':
+                        in_escape = True
+                        escape_seq = char
+                        continue
+
+                    if in_escape:
+                        escape_seq += char
+                        # Check for complete escape sequence (ends with letter)
+                        if char.isalpha():
+                            in_escape = False
+                            # Handle cursor up: \033[nA
+                            if escape_seq.endswith('A') and '[' in escape_seq:
+                                try:
+                                    # Extract the number of lines to move up
+                                    num = escape_seq[2:-1]  # Get chars between [ and A
+                                    lines_up = int(num) if num else 1
+                                    # Discard current_line - it's old content being overwritten
+                                    current_line = ""
+                                    # Remove n lines to simulate cursor moving up
+                                    self.lines = self.lines[:-lines_up] if lines_up <= len(self.lines) else []
+                                except ValueError:
+                                    pass
+                            # Ignore other escape sequences (clear line, colors, etc.)
+                            escape_seq = ""
+                        continue
+
+                    if char == '\r':
+                        # Carriage return: go to beginning of line
+                        # Discard current_line - next chars will overwrite it
+                        current_line = ""
+                    elif char == '\n':
+                        # Newline: commit current line and start new one
+                        # Detect start of new rclone progress block and clear old lines
+                        # rclone progress blocks contain "Transferred:" with "ETA" - may be concatenated
+                        if "Transferred:" in current_line and "ETA" in current_line:
+                            # Extract just the Transferred: part (discard any prefix from previous line)
+                            idx = current_line.find("Transferred:")
+                            current_line = current_line[idx:]
+                            self.lines = []
+                        self.lines.append(current_line)
+                        current_line = ""
+                    else:
+                        current_line += char
+
+                # Add any remaining content
+                if current_line:
+                    self.lines.append(current_line)
 
             finally:
                 self.isDone = True
@@ -105,13 +161,17 @@ class commandcomponent(component):
     def draw(self, stdscr):
         rows, cols = stdscr.getmaxyx()
 
-        output = self.output.split("\n")
-        output = "\n".join(output[-rows:-1])
+        # Show only the last (rows - offset) lines
+        max_lines = rows - self.offset[1] - 1
+        visible_lines = self.lines[-max_lines:] if self.lines else []
 
-        try:
-            stdscr.addstr(self.offset[1], self.offset[0], output)
-        except curses.error:
-            pass
+        for i, line in enumerate(visible_lines):
+            # Truncate line to fit screen width
+            display_line = line[:cols - self.offset[0] - 1]
+            try:
+                stdscr.addstr(self.offset[1] + i, self.offset[0], display_line)
+            except curses.error:
+                pass
 
     def handleinput(self, c: int):
         pass
