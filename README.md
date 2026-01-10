@@ -1,7 +1,5 @@
 <!-- MANPAGE: BEGIN EXCLUDED SECTION -->
 <div align="center">
-   <img width="500" alt="rcli Logo" src="https://raw.githubusercontent.com/Desperationis/rcli/main/.github/banner.png">
-   <br />
    <h1 align="center">rcli - CLI Interface for rclone</h1>
    <img alt="Demo" src="https://raw.githubusercontent.com/Desperationis/rcli/main/.github/demo.gif">
 </div>
