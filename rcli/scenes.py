@@ -107,10 +107,11 @@ class choosefilescene(scene):
 
 
 class fuzzyscene(scene):
-    def __init__(self, remote, cache):
+    def __init__(self, remote, cache, folderDir=None):
         super().__init__()
         self.remote = remote
         self.cache = cache
+        self.folderDir = folderDir if folderDir is not None else []
         self.fuzzyForum = None
         self.nextScene = None
 
@@ -154,8 +155,17 @@ class downloadscene(scene):
 
         if self.commandforum.getdata() != None:
             self.nextScene = SCENES.CHOOSE_FILE
+            return
 
-        time.sleep(0.2)
+        # Allow user to cancel with q or ESC while command is running
+        stdscr.timeout(200)
+        c = stdscr.getch()
+        stdscr.timeout(-1)
+        if c == ord('q') or c == 27:
+            self.commandforum.commandcomponent.kill()
+            self.nextScene = SCENES.CHOOSE_FILE
+        elif c == curses.KEY_RESIZE:
+            curses.resizeterm(*stdscr.getmaxyx())
 
     def getNextScene(self) -> Optional[int]:
         return self.nextScene
@@ -263,8 +273,17 @@ class uploadscene(scene):
             if self.commandforum.getdata() is not None:
                 self.cache.invalidate(self.remote, self._current_path())
                 self.nextScene = SCENES.CHOOSE_FILE
+                return
 
-            time.sleep(0.2)
+            # Allow user to cancel with q or ESC while command is running
+            stdscr.timeout(200)
+            c = stdscr.getch()
+            stdscr.timeout(-1)
+            if c == ord('q') or c == 27:
+                self.commandforum.commandcomponent.kill()
+                self.nextScene = SCENES.CHOOSE_FILE
+            elif c == curses.KEY_RESIZE:
+                curses.resizeterm(*stdscr.getmaxyx())
 
     def getNextScene(self) -> Optional[int]:
         return self.nextScene

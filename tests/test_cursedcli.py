@@ -205,6 +205,7 @@ class TestMainLoopTransitions:
         # Scene 3: Browse docs/ → fuzzy search
         scene3 = MagicMock()
         scene3.getNextScene.return_value = SCENES.FUZZY_SEARCH
+        scene3.folderDir = ["docs"]
 
         # Scene 4: Fuzzy → select path → CHOOSE_FILE
         scene4 = MagicMock()
@@ -237,8 +238,8 @@ class TestMainLoopTransitions:
             "b2:docs/readme.txt", ".", ["docs"]
         )
 
-        # Fuzzy scene: receives remote and cache
-        mock_fuzzy_cls.assert_called_once_with("b2:", mock_cache)
+        # Fuzzy scene: receives remote, cache, and folderDir
+        mock_fuzzy_cls.assert_called_once_with("b2:", mock_cache, ["docs"])
 
     @patch("rcli.cursedcli.time.sleep")
     @patch("rcli.cursedcli.uploadscene")

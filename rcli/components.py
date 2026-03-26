@@ -50,19 +50,21 @@ class textcomponent(component):
         if self.flags & self.MIDDLE:
             y = (rows - 1) // 2
 
+        display_text = self.text
+
         if self.flags & self.BAR:
             leftPadding = 0
-            rightPadding = (cols - 1) - len(self.text) - x
+            rightPadding = max(0, (cols - 1) - len(self.text) - x)
 
             if self.flags & self.TEXT_CENTERED:
                 leftPadding = x
                 x = 0
 
-            self.text = " " * leftPadding + self.text + " " * rightPadding
+            display_text = " " * leftPadding + self.text + " " * rightPadding
             textAttr = curses.A_REVERSE
 
         try:
-            stdscr.addstr(y, x, self.text, textAttr)
+            stdscr.addstr(y, x, display_text, textAttr)
         except curses.error:
             pass
 
@@ -77,6 +79,7 @@ class commandcomponent(component):
         self.process = None
         self.lines = []  # Store lines as a list for proper terminal handling
         self.isDone = False
+        self._lock = threading.Lock()
 
         # Start the subprocess in a separate thread
         self.startcommand()
@@ -123,7 +126,8 @@ class commandcomponent(component):
                                     # Discard current_line - it's old content being overwritten
                                     current_line = ""
                                     # Remove n lines to simulate cursor moving up
-                                    self.lines = self.lines[:-lines_up] if lines_up <= len(self.lines) else []
+                                    with self._lock:
+                                        self.lines = self.lines[:-lines_up] if lines_up <= len(self.lines) else []
                                 except ValueError:
                                     pass
                             # Ignore other escape sequences (clear line, colors, etc.)
@@ -142,29 +146,39 @@ class commandcomponent(component):
                             # Extract just the Transferred: part (discard any prefix from previous line)
                             idx = current_line.find("Transferred:")
                             current_line = current_line[idx:]
-                            self.lines = []
-                        self.lines.append(current_line)
+                            with self._lock:
+                                self.lines = []
+                        with self._lock:
+                            self.lines.append(current_line)
                         current_line = ""
                     else:
                         current_line += char
 
                 # Add any remaining content
                 if current_line:
-                    self.lines.append(current_line)
+                    with self._lock:
+                        self.lines.append(current_line)
 
             finally:
                 self.isDone = True
 
-        # Create and start a new thread for running the subprocess
+        # Create and start a daemon thread for running the subprocess
         thread = threading.Thread(target=runcommand)
+        thread.daemon = True
         thread.start()
+
+    def kill(self):
+        """Terminate the running subprocess if any."""
+        if self.process and self.process.poll() is None:
+            self.process.terminate()
 
     def draw(self, stdscr):
         rows, cols = stdscr.getmaxyx()
 
         # Show only lines that fit on screen
         max_lines = rows - 2
-        visible_lines = self.lines[-max_lines:] if self.lines else []
+        with self._lock:
+            visible_lines = self.lines[-max_lines:] if self.lines else []
 
         # Strip leading whitespace from all lines
         stripped_lines = [line.lstrip()[:cols - 1] for line in visible_lines]
@@ -197,25 +211,28 @@ class fuzzycomponent(component):
 
     def draw(self, stdscr):
         rows, cols = stdscr.getmaxyx()
-        maxlines = rows - self.offset[1] - 3
+        maxlines = max(1, rows - self.offset[1] - 3)
         topresults = self.topresults[:maxlines]
 
         if len(self.topresults) > 0:
-            self.selectedIndex %= maxlines
+            self.selectedIndex %= min(maxlines, len(self.topresults))
         else:
             self.selectedIndex = 0
 
-        stdscr.addstr(self.offset[1], self.offset[0], self.inputtext)
+        try:
+            stdscr.addstr(self.offset[1], self.offset[0], self.inputtext[:cols - self.offset[0]])
+        except curses.error:
+            pass
         for i, result in enumerate(topresults):
-            if self.selectedIndex == i:
-                stdscr.addstr(
-                    self.offset[1] + i + 2, self.offset[0], result, curses.A_REVERSE
-                )
-            else:
-                try:
+            try:
+                if self.selectedIndex == i:
+                    stdscr.addstr(
+                        self.offset[1] + i + 2, self.offset[0], result, curses.A_REVERSE
+                    )
+                else:
                     stdscr.addstr(self.offset[1] + i + 2, self.offset[0], result)
-                except curses.error:
-                    pass
+            except curses.error:
+                pass
 
     def updateresults(self):
         results = []
@@ -241,7 +258,7 @@ class fuzzycomponent(component):
             self.inputtext = self.inputtext[:-1]
             self.updateresults()
         elif c == curses.KEY_ENTER or c == 10:
-            if len(self.topresults) > 0:
+            if len(self.topresults) > 0 and self.selectedIndex < len(self.topresults):
                 self.choice = self.topresults[self.selectedIndex]
         elif c == 27:  # Escape
             self.choice = ""
@@ -373,4 +390,5 @@ class choicecomponent(component):
         elif c == ord("q"):
             self.choice = SelectedOption(CHOICE.QUIT)
 
-        self.elementIndex = self.elementIndex % len(self.elements)
+        if self.elements:
+            self.elementIndex = self.elementIndex % len(self.elements)

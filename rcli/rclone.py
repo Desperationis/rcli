@@ -16,8 +16,8 @@ def check_rclone_available():
 
 
 class rclone:
-    def rclone(self, args: list[str], capture=False):
-        args.insert(0, "rclone")
+    def rclone(self, args: list[str], capture=False, timeout=60):
+        args = ["rclone"] + args
 
         if not capture:
             subprocess.run(args)
@@ -28,7 +28,16 @@ class rclone:
                 stderr=subprocess.PIPE,
                 universal_newlines=True,
             )
-            output, error = process.communicate()
+            try:
+                output, error = process.communicate(timeout=timeout)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.communicate()
+                logging.warning("rclone command timed out: %s", " ".join(args))
+                return ""
+
+            if error:
+                logging.warning("rclone stderr: %s", error.strip())
 
             return output
 

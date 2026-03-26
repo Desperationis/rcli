@@ -1,4 +1,5 @@
 import curses
+import time
 from typing import Optional
 from threading import Thread
 from .enums import SCENES
@@ -56,12 +57,20 @@ class cursedcli:
                 self.connected = rc.test_connection(self.remote, timeout=10)
 
         conn_test = ConnTestThread(self.remote)
+        conn_test.daemon = True
         conn_test.start()
+        self.stdscr.timeout(100)
         while conn_test.is_alive():
             self.stdscr.erase()
             loadingforum(content).draw(self.stdscr)
             self.stdscr.refresh()
-            time.sleep(0.1)
+            c = self.stdscr.getch()
+            if c == 27 or c == ord('q'):  # ESC or q to cancel
+                self.stdscr.timeout(-1)
+                return False
+            if c == curses.KEY_RESIZE:
+                curses.resizeterm(*self.stdscr.getmaxyx())
+        self.stdscr.timeout(-1)
         conn_test.join()
 
         if not conn_test.connected:
@@ -78,6 +87,7 @@ class cursedcli:
     def main(self):
         # If no remote specified, start with remote picker
         if self.remote is None:
+            check_rclone_available()
             rc = rclone()
             scene = remotepickerscene(rc)
             while True:
@@ -108,14 +118,17 @@ class cursedcli:
 
             nextScene: Optional[int] = scene.getNextScene()
             if nextScene == SCENES.FUZZY_SEARCH:
-                scene = fuzzyscene(self.remote, cache)
+                scene = fuzzyscene(self.remote, cache, scene.folderDir if hasattr(scene, 'folderDir') else [])
 
             if nextScene == SCENES.CHOOSE_FILE:
-                filePath: str = scene.getdata()
-                initialFolder = list(
-                    filter(None, filePath.split("/"))
-                )  # Removes empty strings
-                initialFolder = initialFolder[:-1]  # Parent folder path
+                filePath = scene.getdata()
+                if filePath:
+                    initialFolder = list(
+                        filter(None, filePath.split("/"))
+                    )  # Removes empty strings
+                    initialFolder = initialFolder[:-1]  # Parent folder path
+                else:
+                    initialFolder = scene.folderDir if hasattr(scene, 'folderDir') else []
                 scene = choosefilescene(self.remote, cache, initialFolder)
 
             if nextScene == SCENES.DOWNLOAD:

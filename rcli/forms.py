@@ -80,7 +80,7 @@ class choiceforum(forum):
     def _compute_layout(self, stdscr):
         rows, cols = stdscr.getmaxyx()
         # x=1, y=3 for header space; leave 2 rows for bottom bar + margin
-        self.choiceComponent.brect = brect(1, 3, cols - 2, rows - 5)
+        self.choiceComponent.brect = brect(1, 3, max(1, cols - 2), max(1, rows - 5))
         self._layout_computed = True
 
     def draw(self, stdscr):
@@ -99,6 +99,7 @@ class choiceforum(forum):
 
 class fuzzyforum(forum):
     def __init__(self, pathList, registerKeyFunc):
+        super().__init__(registerKeyFunc)
         self.fuzzycomponent = fuzzycomponent(pathList, offset=(1, 2))
         self.components = [
             textcomponent("Search file: ", textcomponent.NONE, (1, 1)),
