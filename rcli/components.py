@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 from typing import Optional
 from .enums import CHOICE, SCENES, SelectedOption
 from .brect import brect
+from .utils import format_size, format_date
 import string
 import logging
 import threading
@@ -254,13 +255,14 @@ class fuzzycomponent(component):
 
 
 class choicecomponent(component):
-    def __init__(self, choices: list[str], back=False, rect=brect(0, 0, 10, 10)):
+    def __init__(self, choices: list[dict], back=False, rect=brect(0, 0, 10, 10)):
         super().__init__((0, 0))
         self.choices = choices
         self.choice = SelectedOption()
         self.back = back
         self.brect = rect
         self.selectChar = "> "
+        self._needs_resize = False
 
         self.elements = []
         self.elementIndex = 0
@@ -269,32 +271,60 @@ class choicecomponent(component):
         if back:
             self.elements.append(CHOICE.BACK)
 
+    def _format_entry(self, entry):
+        """Format a dict entry into display name, size, and date strings."""
+        name = entry.get("Name", "")
+        is_dir = entry.get("IsDir", False)
+        if is_dir:
+            name = name.rstrip("/") + "/"
+            size_str = "-"
+        else:
+            size_str = format_size(entry.get("Size", 0))
+        date_str = format_date(entry.get("ModTime"))
+        return name, size_str, date_str
+
+    def _compute_columns(self):
+        """Compute column widths for aligned rendering."""
+        name_w = 0
+        size_w = 0
+        for entry in self.choices:
+            name, size_str, _ = self._format_entry(entry)
+            name_w = max(name_w, len(name))
+            size_w = max(size_w, len(size_str))
+        return name_w, size_w
+
     def draw(self, stdscr):
         # -1 for back button
         numChoicesVisible = self.brect.h - 1
 
         startingIndex = max(0, (self.elementIndex + 1) - numChoicesVisible)
 
+        name_w, size_w = self._compute_columns()
+
         for i in range(startingIndex, len(self.elements)):
             option = self.elements[i]
             x = self.brect.x + len(self.selectChar)
             y = self.brect.y + (i - startingIndex)
-            content = option
 
             # -1 for back
             if option != CHOICE.BACK and y >= self.brect.bottom():
                 continue
 
+            is_dir = False
             if option == CHOICE.BACK:
                 content = "Back"
                 y = min(y + 1, self.brect.bottom())
+            else:
+                name, size_str, date_str = self._format_entry(option)
+                is_dir = option.get("IsDir", False)
+                content = f"{name:<{name_w}}  {size_str:>{size_w}}  {date_str}"
 
             if i == self.elementIndex:
                 x -= len(self.selectChar)
                 content = f"{self.selectChar}{content}"
 
             try:
-                if option != CHOICE.BACK and option.endswith("/"):
+                if option != CHOICE.BACK and is_dir:
                     stdscr.addstr(y, x, content, curses.color_pair(1))
                 else:
                     stdscr.addstr(y, x, content)
@@ -312,7 +342,10 @@ class choicecomponent(component):
         return self.choice
 
     def handleinput(self, c: int):
-        if c == curses.KEY_UP or c == ord("k"):
+        if c == curses.KEY_RESIZE:
+            self._needs_resize = True
+            return
+        elif c == curses.KEY_UP or c == ord("k"):
             self.elementIndex -= 1
         elif c == curses.KEY_DOWN or c == ord("j"):
             self.elementIndex += 1
@@ -329,9 +362,13 @@ class choicecomponent(component):
             self.choice = SelectedOption(CHOICE.BACK)
 
         elif c == ord("d"):
-            self.choice = SelectedOption(
-                CHOICE.DOWNLOAD, self.choices[self.elementIndex]
-            )
+            if self.cursorOnChoice():
+                self.choice = SelectedOption(
+                    CHOICE.DOWNLOAD, self.choices[self.elementIndex]
+                )
+
+        elif c == ord("p"):
+            self.choice = SelectedOption(CHOICE.UPLOAD)
 
         elif c == ord("q"):
             self.choice = SelectedOption(CHOICE.QUIT)

@@ -23,5 +23,11 @@ Issues = "https://github.com/Desperationis/rcli/issues"
 [project.scripts]
 rcli = "rcli:main"
 
+[project.optional-dependencies]
+dev = ["pytest"]
+
 [tool.setuptools.dynamic]
 version = {attr = "rcli.__version__"}
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

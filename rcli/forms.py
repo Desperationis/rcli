@@ -64,11 +64,12 @@ class choiceforum(forum):
         super().__init__(registerKeyFunc)
         self.options = options
         self.choiceComponent = choicecomponent(self.options, back, brect(1, 3, 20, 20))
+        self._layout_computed = False
         self.components = [
             self.choiceComponent,
             textcomponent(extra, textcomponent.NONE, (1, 1)),
             textcomponent(
-                "[d]ownload   [u] refresh   [/] search    [jk] up/down   [h] back    [q] quit",
+                "[d]ownload   [p]ut/upload   [u] refresh   [/] search    [jk] up/down   [h] back    [q] quit",
                 textcomponent.BOTTOM | textcomponent.BAR,
             ),
         ]
@@ -76,7 +77,16 @@ class choiceforum(forum):
         for co in self.components:
             registerKeyFunc(co.handleinput)
 
+    def _compute_layout(self, stdscr):
+        rows, cols = stdscr.getmaxyx()
+        # x=1, y=3 for header space; leave 2 rows for bottom bar + margin
+        self.choiceComponent.brect = brect(1, 3, cols - 2, rows - 5)
+        self._layout_computed = True
+
     def draw(self, stdscr):
+        if not self._layout_computed or self.choiceComponent._needs_resize:
+            self._compute_layout(stdscr)
+            self.choiceComponent._needs_resize = False
         for component in self.components:
             component.draw(stdscr)
 

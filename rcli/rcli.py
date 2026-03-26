@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Usage:
-    rcli [-v] <remote>
+    rcli [-v] [<remote>]
     rcli --clear-cache
     rcli -h
 
@@ -36,15 +36,21 @@ def main():
         print("Removed cache!")
         sys.exit(0)
 
+    cli = None
     try:
         cli = cursedcli(args["<remote>"])
         cli.start()
         cli.main()
 
+    except KeyboardInterrupt:
+        pass
+
     except Exception as e:
         errorStr = traceback.format_exc()
 
     finally:
-        cli.end()
+        if cli is not None:
+            cli.end()
         if len(errorStr) > 0:
+            print(errorStr, file=sys.stderr)
             logging.error(errorStr)

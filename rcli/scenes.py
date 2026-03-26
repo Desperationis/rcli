@@ -1,3 +1,4 @@
+import curses
 from abc import ABC, abstractmethod
 from typing import Optional, List, Callable
 from .enums import CHOICE, SCENES
@@ -35,30 +36,27 @@ class scene(ABC):
 
 
 class choosefilescene(scene):
-    def __init__(self, filesystem, folderDir=""):
+    def __init__(self, remote, cache, folderDir=None):
         super().__init__()
-        self.rclone = rclone()
-        self.filesystem = filesystem
-        self.history = []
-        self.folderDir = []
-        self.currentFolder = filesystem
+        self.remote = remote
+        self.cache = cache
+        self.folderDir = folderDir if folderDir is not None else []
         self.choiceForum = None
         self.nextScene = None
         self.data = None
 
-        if folderDir != "":
-            self.folderDir = folderDir
-            for folder in folderDir:
-                self.history.append(self.currentFolder.copy())
-                self.currentFolder = self.currentFolder[folder]
+    def _current_path(self):
+        if not self.folderDir:
+            return ""
+        return "/".join(self.folderDir) + "/"
 
     def show(self, stdscr):
-        if self.choiceForum == None:
-            options = self.rclone.lsf(self.currentFolder)
+        if self.choiceForum is None:
+            entries = self.cache.listdir(self.remote, self._current_path())
             self.choiceForum = choiceforum(
-                options,
-                len(self.history) > 0,
-                "/".join(self.folderDir),
+                entries,
+                len(self.folderDir) > 0,
+                self._current_path(),
                 self.registerKeyListener,
             )
 
@@ -70,31 +68,30 @@ class choosefilescene(scene):
         if c == ord("/"):
             self.nextScene = SCENES.FUZZY_SEARCH
 
-        if self.choiceForum.getdata() != None:
+        if self.choiceForum.getdata() is not None:
             choice: SelectedOption = self.choiceForum.getdata()
 
             if choice.choice == CHOICE.BACK:
-                self.currentFolder = self.history.pop()
                 self.folderDir.pop()
                 self.keyListeners.clear()
                 self.choiceForum = None
 
             elif choice.choice == CHOICE.SELECTED:
-                if choice.data.endswith("/"):  # It's a folder
-                    self.history.append(self.currentFolder.copy())
-                    self.folderDir.append(choice.data.replace("/", ""))
-                    self.currentFolder = self.currentFolder[
-                        choice.data.replace("/", "")
-                    ]
+                entry = choice.data
+                if entry.get("IsDir", False):
+                    self.folderDir.append(entry["Name"])
                     self.choiceForum = None
                     self.keyListeners.clear()
 
             elif choice.choice == CHOICE.DOWNLOAD:
-                # Assemble full rclone path
-                folder = "/".join(self.folderDir)
-                fullPath = os.path.join(folder, choice.data)
-                self.data = (fullPath, choice.data.endswith("/"))
+                entry = choice.data
+                name = entry["Name"]
+                fullPath = self._current_path() + name
+                self.data = (fullPath, entry.get("IsDir", False))
                 self.nextScene = SCENES.DOWNLOAD
+
+            elif choice.choice == CHOICE.UPLOAD:
+                self.nextScene = SCENES.UPLOAD
 
             elif choice.choice == CHOICE.REFRESH:
                 self.nextScene = SCENES.REFRESH_DATABASE
@@ -110,15 +107,17 @@ class choosefilescene(scene):
 
 
 class fuzzyscene(scene):
-    def __init__(self, pathList):
+    def __init__(self, remote, cache):
         super().__init__()
-        self.pathList = pathList
+        self.remote = remote
+        self.cache = cache
         self.fuzzyForum = None
         self.nextScene = None
 
     def show(self, stdscr):
         if self.fuzzyForum == None:
-            self.fuzzyForum = fuzzyforum(self.pathList, self.registerKeyListener)
+            pathList = self.cache.get_all_cached_paths(self.remote)
+            self.fuzzyForum = fuzzyforum(pathList, self.registerKeyListener)
 
         self.fuzzyForum.draw(stdscr)
 
@@ -165,6 +164,114 @@ class downloadscene(scene):
         if self.commandforum.getdata() == True:
             # Return path that restores to the original folder
             # Adding a dummy element since cursedcli removes the last element
+            return "/".join(self.folderDir + ["_"])
+        return None
+
+
+class remotepickerscene(scene):
+    def __init__(self, rc):
+        super().__init__()
+        self.rc = rc
+        self.choiceForum = None
+        self.nextScene = None
+        self.data = None
+
+    def show(self, stdscr):
+        if self.choiceForum is None:
+            remotes = self.rc.listremotes()
+            entries = [
+                {"Name": name, "Size": 0, "ModTime": "", "IsDir": False}
+                for name in remotes
+            ]
+            self.choiceForum = choiceforum(
+                entries,
+                False,
+                "Select a remote:",
+                self.registerKeyListener,
+            )
+
+        self.choiceForum.draw(stdscr)
+
+        c = stdscr.getch()
+        self.broadcastKeyEvent(c)
+
+        if self.choiceForum.getdata() is not None:
+            choice: SelectedOption = self.choiceForum.getdata()
+
+            if choice.choice == CHOICE.SELECTED:
+                self.data = choice.data["Name"]
+                self.nextScene = SCENES.CHOOSE_FILE
+
+            elif choice.choice == CHOICE.QUIT:
+                self.nextScene = SCENES.EXIT
+
+    def getNextScene(self) -> Optional[int]:
+        return self.nextScene
+
+    def getdata(self):
+        return self.data
+
+
+class uploadscene(scene):
+    def __init__(self, remote, cache, folderDir=None):
+        super().__init__()
+        self.remote = remote
+        self.cache = cache
+        self.folderDir = folderDir if folderDir else []
+        self.nextScene = None
+        self.local_path = ""
+        self.commandforum = None
+
+    def _current_path(self):
+        if not self.folderDir:
+            return ""
+        return "/".join(self.folderDir) + "/"
+
+    def _remote_dest(self):
+        return self.remote + self._current_path()
+
+    def show(self, stdscr) -> None:
+        if self.commandforum is None:
+            # Input phase: prompt for local file path
+            rows, cols = stdscr.getmaxyx()
+            try:
+                stdscr.addstr(1, 1, f"Upload to: {self._remote_dest()}")
+                stdscr.addstr(3, 1, "Local path: " + self.local_path)
+                bar_text = "[enter] upload   [esc] cancel"
+                padding = " " * max(0, cols - 1 - len(bar_text))
+                stdscr.addstr(rows - 1, 0, bar_text + padding, curses.A_REVERSE)
+            except curses.error:
+                pass
+
+            c = stdscr.getch()
+
+            if c == 27:  # Escape
+                self.nextScene = SCENES.CHOOSE_FILE
+            elif c == curses.KEY_ENTER or c == 10:
+                if self.local_path:
+                    self.commandforum = commandforum(
+                        ["rclone", "copy", "-P", self.local_path, self._remote_dest()]
+                    )
+            elif c == curses.KEY_BACKSPACE or c == 127:
+                self.local_path = self.local_path[:-1]
+            elif 32 <= c < 127:  # Printable ASCII
+                self.local_path += chr(c)
+        else:
+            # Command phase: show upload progress
+            self.commandforum.draw(stdscr)
+
+            if self.commandforum.getdata() is not None:
+                self.cache.invalidate(self.remote, self._current_path())
+                self.nextScene = SCENES.CHOOSE_FILE
+
+            time.sleep(0.2)
+
+    def getNextScene(self) -> Optional[int]:
+        return self.nextScene
+
+    def getdata(self) -> Optional[object]:
+        if self.commandforum and self.commandforum.getdata() == True:
+            # Return path that restores to the original folder
             return "/".join(self.folderDir + ["_"])
         return None
 

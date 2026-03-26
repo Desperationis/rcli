@@ -3,6 +3,16 @@ import time
 import subprocess
 import logging
 import json
+import shutil
+
+
+def check_rclone_available():
+    """Raise RuntimeError if the rclone binary is not on PATH."""
+    if shutil.which("rclone") is None:
+        raise RuntimeError(
+            "rclone is not installed or not on PATH. "
+            "Install it from https://rclone.org/install/"
+        )
 
 
 class rclone:
@@ -10,7 +20,7 @@ class rclone:
         args.insert(0, "rclone")
 
         if not capture:
-            os.system(" ".join(args))
+            subprocess.run(args)
         else:
             process = subprocess.Popen(
                 args,
@@ -22,83 +32,121 @@ class rclone:
 
             return output
 
-    def getAllPaths(self, remote: str):
-        paths = self.rclone(["ls", remote], capture=True).split("\n")
-        paths = [path.lstrip() for path in paths]
-        return [" ".join(path.split(" ")[1:]) for path in paths]
+    def listdir(self, remote: str, path: str = "") -> list[dict]:
+        """List directory contents using rclone lsjson."""
+        target = remote + path
+        output = self.rclone(
+            ["lsjson", target, "--max-depth", "1"], capture=True
+        )
+        if not output or not output.strip():
+            return []
+        try:
+            entries = json.loads(output)
+        except (json.JSONDecodeError, ValueError):
+            return []
+        if not isinstance(entries, list):
+            return []
+        return entries
 
-    def getFileStructure(self, paths: list[str]):
-        fileStructure = {}
+    def listremotes(self) -> list[str]:
+        """List configured remotes using rclone listremotes."""
+        output = self.rclone(["listremotes"], capture=True)
+        if not output or not output.strip():
+            return []
+        return [line.strip() for line in output.strip().split("\n") if line.strip()]
 
-        for path in paths:
-            parts = path.split("/")
-            currentLevel = fileStructure
-
-            for part in parts:
-                if part not in currentLevel:
-                    currentLevel[part] = {}
-                currentLevel = currentLevel[part]
-
-        return fileStructure
-
-    def displayFileStructure(self, fileStructure, indent=0):
-        for key, value in fileStructure.items():
-            logging.debug("  " * indent + f"- {key}")
-            if value:
-                self.displayFileStructure(value, indent + 1)
-
-    def lsf(self, fileStructure):
-        output = []
-        for key in fileStructure:
-            if len(key) > 0:
-                if len(fileStructure[key]) > 0:
-                    output.append(key + "/")
-                else:
-                    output.append(key)
-
-        return output
+    def test_connection(self, remote: str, timeout: int = 10) -> bool:
+        """Test if a remote is reachable using rclone lsd."""
+        try:
+            result = subprocess.run(
+                ["rclone", "lsd", remote, "--max-depth", "0"],
+                capture_output=True,
+                timeout=timeout,
+            )
+            return result.returncode == 0
+        except (subprocess.TimeoutExpired, OSError):
+            return False
 
 
 class rclonecache:
+    CACHE_TTL = 60 * 60  # 1 hour
+
     def __init__(self):
+        check_rclone_available()
         self.cachePath = os.path.expanduser("~/.cache/rcli/cache.json")
         self.rclone = rclone()
         os.makedirs(os.path.expanduser("~/.cache/rcli/"), exist_ok=True)
 
-    def getFileStructure(self, remote: str):
-        paths = self.getPaths(remote)
-        return self.rclone.getFileStructure(paths)
+    def _cache_key(self, remote: str, path: str) -> str:
+        return remote + path
 
-    def getPaths(self, remote: str):
+    def _load_cache(self) -> dict:
+        """Load and validate cache from disk. Returns empty dict on failure."""
         if not os.path.exists(self.cachePath):
-            self.refreshCache(remote)
+            return {}
+        try:
+            with open(self.cachePath, "r") as f:
+                data = json.load(f)
+        except (json.JSONDecodeError, ValueError):
+            os.remove(self.cachePath)
+            return {}
+        if not isinstance(data, dict):
+            os.remove(self.cachePath)
+            return {}
+        # Discard old-format cache (keys missing "entries" field)
+        for key, val in list(data.items()):
+            if not isinstance(val, dict) or "entries" not in val:
+                del data[key]
+        return data
 
-        cache = {}
-        with open(self.cachePath, "r") as file:
-            cache = json.load(file)
+    def _save_cache(self, cache: dict):
+        """Atomically write cache to disk."""
+        tmp_path = self.cachePath + ".tmp"
+        try:
+            with open(tmp_path, "w") as f:
+                json.dump(cache, f, indent=2)
+            os.replace(tmp_path, self.cachePath)
+        except Exception:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+            raise
 
-        if remote not in cache:
-            self.refreshCache(remote)
-            return self.getPaths(remote)
+    def listdir(self, remote: str, path: str = "") -> list[dict]:
+        """List directory contents, using cache when fresh."""
+        key = self._cache_key(remote, path)
+        cache = self._load_cache()
+        if key in cache:
+            entry = cache[key]
+            if time.time() - entry["timestamp"] <= self.CACHE_TTL:
+                return entry["entries"]
+        # Cache miss or stale — fetch from rclone
+        entries = self.rclone.listdir(remote, path)
+        cache[key] = {"timestamp": time.time(), "entries": entries}
+        self._save_cache(cache)
+        return entries
 
-        if time.time() - cache[remote]["timestamp"] > 60 * 60:  # An Hour
-            self.refreshCache(remote)
-            return self.getPaths(remote)
+    def invalidate(self, remote: str, path: str = ""):
+        """Remove a specific directory from the cache."""
+        key = self._cache_key(remote, path)
+        cache = self._load_cache()
+        if key in cache:
+            del cache[key]
+            self._save_cache(cache)
 
-        return cache[remote]["data"]
-
-    def refreshCache(self, remote: str):
-        cache = {}
-        if os.path.exists(self.cachePath):
-            with open(self.cachePath, "r") as file:
-                cache = json.load(file)
-
-        paths = self.rclone.getAllPaths(remote)
-        data = { remote: {} }
-        data[remote]["timestamp"] = time.time()
-        data[remote]["data"] = paths
-        cache.update(data)
-        with open(self.cachePath, "w") as file:
-            json.dump(cache, file, indent=2)
+    def get_all_cached_paths(self, remote: str) -> list[str]:
+        """Return all file paths from cached directories for a remote."""
+        cache = self._load_cache()
+        paths = []
+        for key, val in cache.items():
+            if not key.startswith(remote):
+                continue
+            dir_path = key[len(remote):]
+            for entry in val.get("entries", []):
+                name = entry.get("Name", "")
+                if dir_path:
+                    paths.append(dir_path + name)
+                else:
+                    paths.append(name)
+        return paths
 
 

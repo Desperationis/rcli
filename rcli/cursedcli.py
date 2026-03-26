@@ -26,7 +26,8 @@ class cursedcli:
         curses.init_pair(1, curses.COLOR_CYAN, -1)
 
 
-    def main(self):
+    def _test_connection(self):
+        """Run connection test with loading animation. Returns True if connected."""
         content = [
             "                     /$$ /$$",
             "                    | $$|__/",
@@ -41,45 +42,73 @@ class cursedcli:
             "Copyright (c) 2024 Diego Contreras",
             "MIT License",
             "",
-            "Creating database and storing to cache, please be patient.",
+            "Connecting to remote, please wait...",
         ]
 
-        class LoadThread(Thread):
+        class ConnTestThread(Thread):
             def __init__(self, remote):
                 Thread.__init__(self)
-                self.data = None
                 self.remote = remote
-         
+                self.connected = False
+
             def run(self):
-                cache = rclonecache()
-                fileStructure = cache.getFileStructure(self.remote)
-                allPaths = cache.getPaths(self.remote)
+                rc = rclone()
+                self.connected = rc.test_connection(self.remote, timeout=10)
 
-                self.data = (fileStructure, allPaths)
-
-
-        task = LoadThread(self.remote)
-        task.start()
-        while task.is_alive():
+        conn_test = ConnTestThread(self.remote)
+        conn_test.start()
+        while conn_test.is_alive():
             self.stdscr.erase()
             loadingforum(content).draw(self.stdscr)
             self.stdscr.refresh()
             time.sleep(0.1)
-            
-        task.join()
-        data = task.data
-        fileStructure = data[0]
-        allPaths = data[1]
+        conn_test.join()
 
-        scene = choosefilescene(fileStructure)
+        if not conn_test.connected:
+            self.stdscr.erase()
+            loadingforum(
+                f"Failed to connect to {self.remote}. Check your rclone configuration."
+            ).draw(self.stdscr)
+            self.stdscr.refresh()
+            time.sleep(3)
+            return False
+
+        return True
+
+    def main(self):
+        # If no remote specified, start with remote picker
+        if self.remote is None:
+            rc = rclone()
+            scene = remotepickerscene(rc)
+            while True:
+                curses.resizeterm(*self.stdscr.getmaxyx())
+                self.stdscr.erase()
+                scene.show(self.stdscr)
+                self.stdscr.refresh()
+
+                nextScene = scene.getNextScene()
+                if nextScene == SCENES.CHOOSE_FILE:
+                    self.remote = scene.getdata()
+                    break
+                if nextScene == SCENES.EXIT:
+                    return
+
+        # Connection test
+        if not self._test_connection():
+            return
+
+        cache = rclonecache()
+
+        scene = choosefilescene(self.remote, cache)
         while True:
+            curses.resizeterm(*self.stdscr.getmaxyx())
             self.stdscr.erase()
             scene.show(self.stdscr)
             self.stdscr.refresh()
 
             nextScene: Optional[int] = scene.getNextScene()
             if nextScene == SCENES.FUZZY_SEARCH:
-                scene = fuzzyscene(allPaths)
+                scene = fuzzyscene(self.remote, cache)
 
             if nextScene == SCENES.CHOOSE_FILE:
                 filePath: str = scene.getdata()
@@ -87,7 +116,7 @@ class cursedcli:
                     filter(None, filePath.split("/"))
                 )  # Removes empty strings
                 initialFolder = initialFolder[:-1]  # Parent folder path
-                scene = choosefilescene(fileStructure, initialFolder)
+                scene = choosefilescene(self.remote, cache, initialFolder)
 
             if nextScene == SCENES.DOWNLOAD:
                 downloadPath: str = self.remote + scene.getdata()[0]
@@ -99,15 +128,16 @@ class cursedcli:
                 else:
                     scene = downloadscene(downloadPath, ".", folderDir)
 
+            if nextScene == SCENES.UPLOAD:
+                folderDir = scene.folderDir if hasattr(scene, 'folderDir') else []
+                scene = uploadscene(self.remote, cache, folderDir)
+
             if nextScene == SCENES.REFRESH_DATABASE:
                 loadingforum("Refreshing cache, please be patient.").draw(self.stdscr)
                 oldFolder = scene.folderDir
                 self.stdscr.refresh()
-                cache = rclonecache()
-                cache.refreshCache(self.remote)
-                fileStructure = cache.getFileStructure(self.remote)
-                allPaths = cache.getPaths(self.remote)
-                scene = choosefilescene(fileStructure, oldFolder)
+                cache.invalidate(self.remote, "/".join(oldFolder) + "/" if oldFolder else "")
+                scene = choosefilescene(self.remote, cache, oldFolder)
 
             if nextScene == SCENES.EXIT:
                 break
