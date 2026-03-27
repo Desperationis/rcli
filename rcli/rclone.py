@@ -4,6 +4,7 @@ import subprocess
 import logging
 import json
 import shutil
+import threading
 
 
 def check_rclone_available():
@@ -16,7 +17,7 @@ def check_rclone_available():
 
 
 class rclone:
-    def rclone(self, args: list[str], capture=False, timeout=60):
+    def rclone(self, args: list[str], capture=False, timeout=60, quiet=False):
         args = ["rclone"] + args
 
         if not capture:
@@ -33,10 +34,11 @@ class rclone:
             except subprocess.TimeoutExpired:
                 process.kill()
                 process.communicate()
-                logging.warning("rclone command timed out: %s", " ".join(args))
+                if not quiet:
+                    logging.warning("rclone command timed out: %s", " ".join(args))
                 return ""
 
-            if error:
+            if error and not quiet:
                 logging.warning("rclone stderr: %s", error.strip())
 
             return output
@@ -64,11 +66,48 @@ class rclone:
             return []
         return [line.strip() for line in output.strip().split("\n") if line.strip()]
 
+    def about(self, remote: str, timeout: int = 10):
+        """Get remote space usage via rclone about --json. Returns dict or None."""
+        output = self.rclone(["about", remote, "--json"], capture=True, timeout=timeout, quiet=True)
+        if not output or not output.strip():
+            return None
+        try:
+            data = json.loads(output)
+        except (json.JSONDecodeError, ValueError):
+            return None
+        if not isinstance(data, dict):
+            return None
+        return data
+
+    def listdir_recursive(self, remote: str, timeout: int = 300):
+        """List all contents recursively using rclone lsjson -R.
+
+        Returns a list of entry dicts with 'Path' keys on success,
+        or None on timeout, network error, or malformed output.
+        An empty bucket returns [].
+        """
+        output = self.rclone(
+            ["lsjson", "-R", remote], capture=True, timeout=timeout
+        )
+        if output is None or output == "":
+            # Timeout or rclone failure — no data received
+            return None
+        if not output.strip():
+            return None
+        try:
+            entries = json.loads(output)
+        except (json.JSONDecodeError, ValueError):
+            logging.warning("listdir_recursive: failed to parse JSON for %s", remote)
+            return None
+        if not isinstance(entries, list):
+            return None
+        return entries
+
     def test_connection(self, remote: str, timeout: int = 10) -> bool:
         """Test if a remote is reachable using rclone lsd."""
         try:
             result = subprocess.run(
-                ["rclone", "lsd", remote, "--max-depth", "0"],
+                ["rclone", "lsd", remote, "--max-depth", "1"],
                 capture_output=True,
                 timeout=timeout,
             )
@@ -159,3 +198,128 @@ class rclonecache:
         return paths
 
 
+class searchindex:
+    """Background search index that recursively lists all paths from a remote.
+
+    Runs `rclone lsjson -R` in a daemon thread. Thread-safe access to results
+    via is_ready() / has_failed() / get_paths(). Designed to survive network
+    errors, timeouts, and malformed responses without crashing.
+    """
+
+    MAX_PATHS = 500_000  # Cap to prevent OOM on very large remotes
+
+    def __init__(self, remote):
+        self.remote = remote
+        self._paths = []
+        self._ready = False
+        self._failed = False
+        self._lock = threading.Lock()
+        self._thread = None
+        self._process = None  # Track subprocess for cleanup on exit
+
+    def start(self):
+        """Start background indexing in a daemon thread."""
+        self._thread = threading.Thread(target=self._build, daemon=True)
+        self._thread.start()
+
+    def _build(self):
+        """Fetch all paths recursively from the remote."""
+        process = None
+        try:
+            args = ["rclone", "lsjson", "-R", self.remote]
+            process = subprocess.Popen(
+                args,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                universal_newlines=True,
+            )
+            self._process = process
+            try:
+                output, error = process.communicate(timeout=300)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.communicate()
+                logging.warning("Search index timed out for %s", self.remote)
+                with self._lock:
+                    self._failed = True
+                return
+            finally:
+                self._process = None
+
+            if error:
+                logging.warning("Search index rclone stderr for %s: %s", self.remote, error.strip())
+
+            if not output or not output.strip():
+                with self._lock:
+                    self._failed = True
+                logging.warning("Search index failed for %s: no data returned", self.remote)
+                return
+
+            try:
+                entries = json.loads(output)
+            except (json.JSONDecodeError, ValueError):
+                with self._lock:
+                    self._failed = True
+                logging.warning("Search index failed for %s: malformed JSON", self.remote)
+                return
+
+            if not isinstance(entries, list):
+                with self._lock:
+                    self._failed = True
+                return
+
+            paths = []
+            for entry in entries:
+                if not isinstance(entry, dict):
+                    continue
+                path = entry.get("Path", "")
+                if not path:
+                    path = entry.get("Name", "")
+                if not path:
+                    continue
+                # Append trailing / to directories so fuzzy search can distinguish them
+                if entry.get("IsDir", False) and not path.endswith("/"):
+                    path += "/"
+                paths.append(path)
+                if len(paths) >= self.MAX_PATHS:
+                    logging.warning("Search index capped at %d paths for %s", self.MAX_PATHS, self.remote)
+                    break
+            with self._lock:
+                self._paths = paths
+                self._ready = True
+            logging.info("Search index ready: %d paths for %s", len(paths), self.remote)
+        except Exception as e:
+            if process and process.poll() is None:
+                process.kill()
+                try:
+                    process.communicate(timeout=5)
+                except Exception:
+                    pass
+            with self._lock:
+                self._failed = True
+            logging.warning("Search index failed for %s: %s", self.remote, e)
+
+    def is_ready(self):
+        """Return True if the index has been built successfully."""
+        with self._lock:
+            return self._ready
+
+    def has_failed(self):
+        """Return True if the index build encountered an error."""
+        with self._lock:
+            return self._failed
+
+    def get_paths(self):
+        """Return the list of all indexed paths, or empty list if not ready."""
+        with self._lock:
+            return list(self._paths) if self._ready else []
+
+    def stop(self):
+        """Kill the background rclone subprocess if still running."""
+        proc = self._process
+        if proc and proc.poll() is None:
+            proc.kill()
+            try:
+                proc.communicate(timeout=5)
+            except Exception:
+                pass

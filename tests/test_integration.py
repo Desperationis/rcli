@@ -153,11 +153,11 @@ class TestEndToEndSmoke:
             mock_curses.A_REVERSE = 1 << 18
             mock_curses.error = Exception
 
-            cli = cursedcli("b2:")
+            cli = cursedcli("b2:", no_index=True)
             cli.main()
 
         # --- Verify connection test (subprocess.run) ---
-        assert run_commands[0] == ["rclone", "lsd", "b2:", "--max-depth", "0"]
+        assert run_commands[0] == ["rclone", "lsd", "b2:", "--max-depth", "1"]
 
         # --- Verify Popen commands in order ---
         # 1. browse root

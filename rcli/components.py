@@ -201,6 +201,8 @@ class commandcomponent(component):
 
 
 class fuzzycomponent(component):
+    MAX_RESULTS = 1000  # Cap to avoid O(N) sort on huge path lists
+
     def __init__(self, data, offset=(0, 0)):
         super().__init__(offset)
         self.data = data
@@ -209,10 +211,16 @@ class fuzzycomponent(component):
         self.selectedIndex = 0
         self.choice = None
 
+    @staticmethod
+    def _sanitize(text):
+        """Replace control characters (0x00-0x1F except tab) with '?' for safe curses display."""
+        return ''.join(c if c >= ' ' or c == '\t' else '?' for c in text)
+
     def draw(self, stdscr):
         rows, cols = stdscr.getmaxyx()
         maxlines = max(1, rows - self.offset[1] - 3)
         topresults = self.topresults[:maxlines]
+        max_width = max(1, cols - self.offset[0] - 1)
 
         if len(self.topresults) > 0:
             self.selectedIndex %= min(maxlines, len(self.topresults))
@@ -220,41 +228,45 @@ class fuzzycomponent(component):
             self.selectedIndex = 0
 
         try:
-            stdscr.addstr(self.offset[1], self.offset[0], self.inputtext[:cols - self.offset[0]])
+            stdscr.addstr(self.offset[1], self.offset[0], self.inputtext[:max_width])
         except curses.error:
             pass
         for i, result in enumerate(topresults):
+            display = self._sanitize(result)[:max_width]
             try:
                 if self.selectedIndex == i:
                     stdscr.addstr(
-                        self.offset[1] + i + 2, self.offset[0], result, curses.A_REVERSE
+                        self.offset[1] + i + 2, self.offset[0], display, curses.A_REVERSE
                     )
                 else:
-                    stdscr.addstr(self.offset[1] + i + 2, self.offset[0], result)
+                    stdscr.addstr(self.offset[1] + i + 2, self.offset[0], display)
             except curses.error:
                 pass
 
     def updateresults(self):
-        results = []
         keywords = list(filter(None, self.inputtext.split(" ")))
 
-        # Iterate through file paths
+        # Score each path by how many keywords match
+        scored = []
         for file_path in self.data:
-            # Count the occurrences of keywords in the file path
-            score = sum(keyword.lower() in file_path.lower() for keyword in keywords)
+            lower_path = file_path.lower()
+            score = sum(kw.lower() in lower_path for kw in keywords)
+            scored.append((score, file_path))
 
-            # Append the tuple (file_path, score) to the results list
-            results.append((file_path, score))
-
-        results.sort(key=lambda x: x[1], reverse=True)
-        results = [result[0] for result in results]
-        self.topresults = results
+        # Only keep top results to avoid sorting millions of entries
+        scored.sort(key=lambda x: x[0], reverse=True)
+        self.topresults = [path for _, path in scored[:self.MAX_RESULTS]]
 
     def isvalid(self, c: int):
-        return str(chr(c)) in string.printable
+        try:
+            ch = chr(c)
+        except (ValueError, OverflowError):
+            return False
+        # Accept ASCII printable and any non-ASCII character (unicode)
+        return ch in string.printable or c >= 128
 
     def handleinput(self, c: int):
-        if c == curses.KEY_BACKSPACE:
+        if c == curses.KEY_BACKSPACE or c == 127:
             self.inputtext = self.inputtext[:-1]
             self.updateresults()
         elif c == curses.KEY_ENTER or c == 10:
@@ -297,7 +309,8 @@ class choicecomponent(component):
             size_str = "-"
         else:
             size_str = format_size(entry.get("Size", 0))
-        date_str = format_date(entry.get("ModTime"))
+        mod_time = entry.get("ModTime")
+        date_str = format_date(mod_time) if mod_time else ""
         return name, size_str, date_str
 
     def _compute_columns(self):

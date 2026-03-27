@@ -26,7 +26,7 @@ class TestConnectionTesting:
 
         from rcli.cursedcli import cursedcli
 
-        cli = cursedcli("b2:")
+        cli = cursedcli("b2:", no_index=True)
         cli.main()
 
         # Connection was tested
@@ -66,7 +66,7 @@ class TestConnectionTesting:
 
         from rcli.cursedcli import cursedcli
 
-        cli = cursedcli("b2:")
+        cli = cursedcli("b2:", no_index=True)
         cli.main()
 
         # Connection was tested
@@ -112,7 +112,7 @@ class TestRemotePicker:
 
         from rcli.cursedcli import cursedcli
 
-        cli = cursedcli(None)
+        cli = cursedcli(None, no_index=True)
         cli.main()
 
         # Remote picker was created with an rclone instance
@@ -145,7 +145,7 @@ class TestRemotePicker:
 
         from rcli.cursedcli import cursedcli
 
-        cli = cursedcli(None)
+        cli = cursedcli(None, no_index=True)
         cli.main()
 
         mock_picker_cls.assert_called_once_with(mock_rc)
@@ -222,7 +222,7 @@ class TestMainLoopTransitions:
 
         from rcli.cursedcli import cursedcli
 
-        cli = cursedcli("b2:")
+        cli = cursedcli("b2:", no_index=True)
         cli.main()
 
         # Verify choosefilescene construction params
@@ -238,8 +238,8 @@ class TestMainLoopTransitions:
             "b2:docs/readme.txt", ".", ["docs"]
         )
 
-        # Fuzzy scene: receives remote, cache, and folderDir
-        mock_fuzzy_cls.assert_called_once_with("b2:", mock_cache, ["docs"])
+        # Fuzzy scene: receives remote, cache, folderDir, and search_index (None when no_index=True)
+        mock_fuzzy_cls.assert_called_once_with("b2:", mock_cache, ["docs"], None)
 
     @patch("rcli.cursedcli.time.sleep")
     @patch("rcli.cursedcli.uploadscene")
@@ -278,7 +278,7 @@ class TestMainLoopTransitions:
 
         from rcli.cursedcli import cursedcli
 
-        cli = cursedcli("b2:")
+        cli = cursedcli("b2:", no_index=True)
         cli.main()
 
         # Upload scene got correct params: remote, cache, folderDir
@@ -315,7 +315,7 @@ class TestMainLoopTransitions:
 
         from rcli.cursedcli import cursedcli
 
-        cli = cursedcli("b2:")
+        cli = cursedcli("b2:", no_index=True)
         cli.main()
 
         # Cache invalidated for current dir only
@@ -355,7 +355,7 @@ class TestMainLoopTransitions:
 
         from rcli.cursedcli import cursedcli
 
-        cli = cursedcli("b2:")
+        cli = cursedcli("b2:", no_index=True)
         cli.main()
 
         mock_cache.invalidate.assert_called_once_with("b2:", "")
@@ -393,7 +393,7 @@ class TestMainLoopTransitions:
 
         from rcli.cursedcli import cursedcli
 
-        cli = cursedcli("b2:")
+        cli = cursedcli("b2:", no_index=True)
         cli.main()
 
         # For directory download, destination is the folder path, not "."
@@ -430,7 +430,7 @@ class TestKeyResize:
 
         from rcli.cursedcli import cursedcli
 
-        cli = cursedcli("b2:")
+        cli = cursedcli("b2:", no_index=True)
         cli.main()
 
         # resizeterm was called (at least once per loop iteration)

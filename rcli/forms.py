@@ -98,13 +98,14 @@ class choiceforum(forum):
 
 
 class fuzzyforum(forum):
-    def __init__(self, pathList, registerKeyFunc):
+    def __init__(self, pathList, registerKeyFunc, partial=False):
         super().__init__(registerKeyFunc)
         self.fuzzycomponent = fuzzycomponent(pathList, offset=(1, 2))
+        bar_text = "[esc] back   [!] showing visited paths only" if partial else "[esc] back"
         self.components = [
             textcomponent("Search file: ", textcomponent.NONE, (1, 1)),
             self.fuzzycomponent,
-            textcomponent("[esc] back", textcomponent.BOTTOM | textcomponent.BAR),
+            textcomponent(bar_text, textcomponent.BOTTOM | textcomponent.BAR),
         ]
 
         for co in self.components:

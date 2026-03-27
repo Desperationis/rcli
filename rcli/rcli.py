@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Usage:
-    rcli [-v] [<remote>]
+    rcli [-v] [--no-index] [<remote>]
     rcli --clear-cache
     rcli -h
 
@@ -38,7 +38,7 @@ def main():
 
     cli = None
     try:
-        cli = cursedcli(args["<remote>"])
+        cli = cursedcli(args["<remote>"], no_index=args["--no-index"])
         cli.start()
         cli.main()
 

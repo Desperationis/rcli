@@ -7,13 +7,20 @@ from .forms import *
 from .scenes import *
 from .rclone import *
 from . import __version__
+try:
+    from ._buildinfo import BUILD_YEAR
+except ImportError:
+    from datetime import datetime
+    BUILD_YEAR = datetime.now().year
 import logging
 
 
 class cursedcli:
-    def __init__(self, remote):
+    def __init__(self, remote, no_index=False):
         self.stdscr = curses.initscr()
         self.remote = remote
+        self.no_index = no_index
+        self._search_index = None
 
     def start(self):
         curses.noecho()
@@ -26,6 +33,12 @@ class cursedcli:
 
         curses.init_pair(1, curses.COLOR_CYAN, -1)
 
+
+    def _handle_resize(self):
+        """Call resizeterm only when the terminal has actually been resized."""
+        rows, cols = self.stdscr.getmaxyx()
+        if curses.is_term_resized(rows, cols):
+            curses.resizeterm(rows, cols)
 
     def _test_connection(self):
         """Run connection test with loading animation. Returns True if connected."""
@@ -40,7 +53,7 @@ class cursedcli:
             "|__/       \_______/|__/|__/",
             "",
             f"v{__version__}",
-            "Copyright (c) 2024 Diego Contreras",
+            f"Copyright (c) {BUILD_YEAR} Diego Contreras",
             "MIT License",
             "",
             "Connecting to remote, please wait...",
@@ -89,9 +102,12 @@ class cursedcli:
         if self.remote is None:
             check_rclone_available()
             rc = rclone()
+            self.stdscr.erase()
+            loadingforum("Querying remotes...").draw(self.stdscr)
+            self.stdscr.refresh()
             scene = remotepickerscene(rc)
             while True:
-                curses.resizeterm(*self.stdscr.getmaxyx())
+                self._handle_resize()
                 self.stdscr.erase()
                 scene.show(self.stdscr)
                 self.stdscr.refresh()
@@ -109,16 +125,23 @@ class cursedcli:
 
         cache = rclonecache()
 
+        # Start background search index (unless disabled via --no-index)
+        index = None
+        if not self.no_index:
+            index = searchindex(self.remote)
+            index.start()
+            self._search_index = index
+
         scene = choosefilescene(self.remote, cache)
         while True:
-            curses.resizeterm(*self.stdscr.getmaxyx())
+            self._handle_resize()
             self.stdscr.erase()
             scene.show(self.stdscr)
             self.stdscr.refresh()
 
             nextScene: Optional[int] = scene.getNextScene()
             if nextScene == SCENES.FUZZY_SEARCH:
-                scene = fuzzyscene(self.remote, cache, scene.folderDir if hasattr(scene, 'folderDir') else [])
+                scene = fuzzyscene(self.remote, cache, scene.folderDir if hasattr(scene, 'folderDir') else [], index)
 
             if nextScene == SCENES.CHOOSE_FILE:
                 filePath = scene.getdata()
@@ -126,7 +149,10 @@ class cursedcli:
                     initialFolder = list(
                         filter(None, filePath.split("/"))
                     )  # Removes empty strings
-                    initialFolder = initialFolder[:-1]  # Parent folder path
+                    # Directories end with / — navigate into them;
+                    # files — navigate to their parent folder
+                    if not filePath.endswith("/"):
+                        initialFolder = initialFolder[:-1]
                 else:
                     initialFolder = scene.folderDir if hasattr(scene, 'folderDir') else []
                 scene = choosefilescene(self.remote, cache, initialFolder)
@@ -156,6 +182,9 @@ class cursedcli:
                 break
 
     def end(self):
+        # Kill background search index subprocess if still running
+        if self._search_index is not None:
+            self._search_index.stop()
         curses.nocbreak()
         self.stdscr.keypad(False)
         curses.echo()

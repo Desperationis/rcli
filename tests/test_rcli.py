@@ -5,7 +5,7 @@ from rcli.rcli import main
 
 def test_cli_end_not_called_when_init_fails():
     """If cursedcli.__init__ raises, cli.end() should not be called (no NameError)."""
-    with patch("rcli.rcli.docopt", return_value={"-v": False, "--clear-cache": False, "<remote>": "b2:"}):
+    with patch("rcli.rcli.docopt", return_value={"-v": False, "--clear-cache": False, "--no-index": False, "<remote>": "b2:"}):
         with patch("rcli.rcli.cursedcli", side_effect=RuntimeError("init failed")):
             # Should not raise NameError; the RuntimeError is caught internally
             main()
@@ -16,7 +16,7 @@ def test_keyboard_interrupt_produces_no_stderr(capsys):
     mock_cli = MagicMock()
     mock_cli.main.side_effect = KeyboardInterrupt
 
-    with patch("rcli.rcli.docopt", return_value={"-v": False, "--clear-cache": False, "<remote>": "b2:"}):
+    with patch("rcli.rcli.docopt", return_value={"-v": False, "--clear-cache": False, "--no-index": False, "<remote>": "b2:"}):
         with patch("rcli.rcli.cursedcli", return_value=mock_cli):
             main()
 
@@ -29,7 +29,7 @@ def test_exception_prints_traceback_to_stderr(capsys):
     mock_cli = MagicMock()
     mock_cli.main.side_effect = ValueError("something broke")
 
-    with patch("rcli.rcli.docopt", return_value={"-v": False, "--clear-cache": False, "<remote>": "b2:"}):
+    with patch("rcli.rcli.docopt", return_value={"-v": False, "--clear-cache": False, "--no-index": False, "<remote>": "b2:"}):
         with patch("rcli.rcli.cursedcli", return_value=mock_cli):
             main()
 
@@ -42,8 +42,8 @@ def test_no_remote_passes_none_to_cursedcli():
     """Calling main with no remote should pass remote=None to cursedcli."""
     mock_cli = MagicMock()
 
-    with patch("rcli.rcli.docopt", return_value={"-v": False, "--clear-cache": False, "<remote>": None}):
+    with patch("rcli.rcli.docopt", return_value={"-v": False, "--clear-cache": False, "--no-index": False, "<remote>": None}):
         with patch("rcli.rcli.cursedcli", return_value=mock_cli) as mock_cls:
             main()
 
-    mock_cls.assert_called_once_with(None)
+    mock_cls.assert_called_once_with(None, no_index=False)

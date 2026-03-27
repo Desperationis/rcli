@@ -6,6 +6,7 @@ from .rclone import *
 from .forms import *
 import os
 import time
+from threading import Thread
 
 class scene(ABC):
     def __init__(self):
@@ -107,33 +108,70 @@ class choosefilescene(scene):
 
 
 class fuzzyscene(scene):
-    def __init__(self, remote, cache, folderDir=None):
+    def __init__(self, remote, cache, folderDir=None, search_index=None):
         super().__init__()
         self.remote = remote
         self.cache = cache
         self.folderDir = folderDir if folderDir is not None else []
+        self.search_index = search_index
         self.fuzzyForum = None
         self.nextScene = None
 
+    def _index_is_building(self):
+        """Return True if the search index exists and is still in progress."""
+        if self.search_index is None:
+            return False
+        return not self.search_index.is_ready() and not self.search_index.has_failed()
+
     def show(self, stdscr):
-        if self.fuzzyForum == None:
-            pathList = self.cache.get_all_cached_paths(self.remote)
-            self.fuzzyForum = fuzzyforum(pathList, self.registerKeyListener)
+        # If we haven't built the fuzzy forum yet, check index status
+        if self.fuzzyForum is None and self._index_is_building():
+            rows, cols = stdscr.getmaxyx()
+            msg = "Indexing remote for search..."
+            try:
+                stdscr.addstr(rows // 2, max(0, (cols - len(msg)) // 2), msg)
+                bar = "[esc] back   [s] search visited paths"
+                padding = " " * max(0, cols - 1 - len(bar))
+                stdscr.addstr(rows - 1, 0, bar + padding, curses.A_REVERSE)
+            except curses.error:
+                pass
+
+            stdscr.timeout(200)
+            c = stdscr.getch()
+            stdscr.timeout(-1)
+
+            if c == 27:  # ESC — go back to file browser
+                self.nextScene = SCENES.CHOOSE_FILE
+            elif c == ord('s'):  # Skip — search with cached paths only
+                self.search_index = None
+            elif c == curses.KEY_RESIZE:
+                curses.resizeterm(*stdscr.getmaxyx())
+            return
+
+        # Build fuzzy forum from the best available source
+        if self.fuzzyForum is None:
+            partial = False
+            if self.search_index is not None and self.search_index.is_ready():
+                pathList = self.search_index.get_paths()
+            else:
+                pathList = self.cache.get_all_cached_paths(self.remote)
+                partial = True
+            self.fuzzyForum = fuzzyforum(pathList, self.registerKeyListener, partial=partial)
 
         self.fuzzyForum.draw(stdscr)
 
         c = stdscr.getch()
         self.broadcastKeyEvent(c)
 
-        # User selected something a path
-        if self.fuzzyForum.getdata() != None:
+        # User selected a path
+        if self.fuzzyForum.getdata() is not None:
             self.nextScene = SCENES.CHOOSE_FILE
 
     def getNextScene(self) -> Optional[int]:
         return self.nextScene
 
     def getdata(self):
-        if self.fuzzyForum != None:
+        if self.fuzzyForum is not None:
             return self.fuzzyForum.getdata()
         return None
 
@@ -186,13 +224,26 @@ class remotepickerscene(scene):
         self.nextScene = None
         self.data = None
 
+        self._remotes = rc.listremotes()
+        self._about_results = {}
+        threads = []
+        for remote in self._remotes:
+            t = Thread(target=self._query_about, args=(remote,), daemon=True)
+            t.start()
+            threads.append(t)
+        for t in threads:
+            t.join()
+
+    def _query_about(self, remote):
+        self._about_results[remote] = self.rc.about(remote)
+
     def show(self, stdscr):
         if self.choiceForum is None:
-            remotes = self.rc.listremotes()
-            entries = [
-                {"Name": name, "Size": 0, "ModTime": "", "IsDir": False}
-                for name in remotes
-            ]
+            entries = []
+            for name in self._remotes:
+                about = self._about_results.get(name)
+                used = about.get("used", -1) if isinstance(about, dict) else -1
+                entries.append({"Name": name, "Size": used, "IsDir": False})
             self.choiceForum = choiceforum(
                 entries,
                 False,
