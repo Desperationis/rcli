@@ -147,7 +147,7 @@ class TestTestConnection:
             r = rclone()
             assert r.test_connection("b2:") is True
             call_args = mock_run.call_args
-            assert call_args[0][0] == ["rclone", "lsd", "b2:", "--max-depth", "0"]
+            assert call_args[0][0] == ["rclone", "lsd", "b2:", "--max-depth", "1"]
 
     def test_connection_failure(self):
         with patch("subprocess.run") as mock_run:

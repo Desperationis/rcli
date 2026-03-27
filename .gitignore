@@ -5,4 +5,5 @@ dist/
 rcli.egg-info/
 rclonecli.egg-info/
 .build-venv/
+rcli/_buildinfo.py
 CLAUDE.md
